@@ -206,7 +206,7 @@ export function PlcConfigBuilder() {
                   id="plcName"
                   value={plcName}
                   onChange={(e) => setPlcName(e.target.value)}
-                  className="mt-1"
+                  className="mt-1 font-normal"
                   data-testid="input-plc-name"
                 />
               </div>
@@ -218,7 +218,7 @@ export function PlcConfigBuilder() {
                   id="plcIp"
                   value={plcIp}
                   onChange={(e) => setPlcIp(e.target.value)}
-                  className="mt-1"
+                  className="mt-1 font-normal"
                   data-testid="input-plc-ip"
                 />
               </div>
@@ -230,7 +230,7 @@ export function PlcConfigBuilder() {
                   id="opcuaUrl"
                   value={opcuaUrl}
                   onChange={(e) => setOpcuaUrl(e.target.value)}
-                  className="mt-1"
+                  className="mt-1 font-normal"
                   data-testid="input-opcua-url"
                 />
               </div>
