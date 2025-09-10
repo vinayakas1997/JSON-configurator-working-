@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useLanguage } from "@/hooks/use-language";
-import { Microchip, Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import { Microchip, Plus, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -11,6 +13,7 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onClose, onToggle, plcName }: SidebarProps) {
   const { t } = useLanguage();
+  const [searchQuery, setSearchQuery] = useState("");
 
   return (
     <>
@@ -53,6 +56,20 @@ export function Sidebar({ isOpen, onClose, onToggle, plcName }: SidebarProps) {
               {t('sidebarTitle')}
             </h2>
           </div>
+          
+          {/* Search Input */}
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+            <Input
+              type="text"
+              placeholder={t('searchSessions')}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 text-sm"
+              data-testid="input-search-sessions"
+            />
+          </div>
+          
           <div className="space-y-2">
             <div className="p-3 rounded-lg bg-primary text-primary-foreground" data-testid="card-active-session">
               <div className="flex items-center space-x-2">
