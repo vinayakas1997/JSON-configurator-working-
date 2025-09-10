@@ -52,6 +52,7 @@ export class MemStorage implements IStorage {
       ...insertConfig,
       id,
       created_at: new Date().toISOString(),
+      description: insertConfig.description || null,
     };
     this.plcConfigurations.set(id, config);
     return config;

@@ -85,6 +85,10 @@ export function PlcConfigBuilder() {
     setLanguage(language === 'en' ? 'ja' : 'en');
   };
 
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+  };
+
   return (
     <div className="min-h-screen bg-background" data-testid="container-plc-config">
       {/* Navigation Bar */}
@@ -96,7 +100,7 @@ export function PlcConfigBuilder() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
+                onClick={toggleSidebar}
                 className="p-2"
                 data-testid="button-menu-toggle"
               >
@@ -138,7 +142,7 @@ export function PlcConfigBuilder() {
       </nav>
 
       {/* Sidebar */}
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} onToggle={toggleSidebar} />
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
