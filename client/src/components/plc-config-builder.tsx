@@ -312,20 +312,70 @@ export function PlcConfigBuilder() {
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <div className="p-4 border-t border-border" data-testid="content-overview">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-muted p-4 rounded-lg" data-testid="stat-total-mappings">
-                      <div className="text-2xl font-bold text-primary">{addressMappings.length}</div>
-                      <div className="text-sm text-muted-foreground">{t('totalMappings')}</div>
-                    </div>
-                    <div className="bg-muted p-4 rounded-lg" data-testid="stat-configured-plcs">
-                      <div className="text-2xl font-bold text-accent">1</div>
-                      <div className="text-sm text-muted-foreground">{t('configuredPlcs')}</div>
-                    </div>
-                    <div className="bg-muted p-4 rounded-lg" data-testid="stat-status">
-                      <div className="text-2xl font-bold text-secondary">{t('configurationReady')}</div>
-                      <div className="text-sm text-muted-foreground">{t('status')}</div>
-                    </div>
-                  </div>
+                  {(() => {
+                    const { memoryAreaCounts, datatypeCounts, otherDatatypes } = analyzeAddressMappings();
+                    const standardMemoryAreas = ['I', 'O', 'A', 'C', 'D', 'E', 'T', 'H'];
+                    
+                    return (
+                      <div className="space-y-6">
+                        {/* Total Variables Found */}
+                        <div className="bg-muted p-4 rounded-lg" data-testid="stat-total-variables">
+                          <div className="text-2xl font-bold text-primary">{addressMappings.length}</div>
+                          <div className="text-sm text-muted-foreground">{t('totalVariables')}</div>
+                        </div>
+
+                        {/* Memory Areas */}
+                        <div className="space-y-3" data-testid="section-memory-areas">
+                          <h3 className="text-lg font-semibold text-foreground">{t('memoryAreas')}</h3>
+                          <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
+                            {standardMemoryAreas.map(area => (
+                              <div key={area} className="flex items-center space-x-2 p-2 rounded border">
+                                <input
+                                  type="checkbox"
+                                  id={`memory-${area}`}
+                                  checked={selectedMemoryAreas.has(area)}
+                                  onChange={() => toggleMemoryArea(area)}
+                                  className="w-4 h-4"
+                                  data-testid={`checkbox-memory-${area}`}
+                                />
+                                <label htmlFor={`memory-${area}`} className="text-sm font-medium cursor-pointer">
+                                  {area}
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Datatypes Found */}
+                        <div className="space-y-3" data-testid="section-datatypes">
+                          <h3 className="text-lg font-semibold text-foreground">{t('datatypesFound')}</h3>
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                            {Array.from(datatypeCounts.entries()).map(([datatype, count]) => (
+                              <div key={datatype} className="bg-muted p-3 rounded-lg text-center">
+                                <div className="text-lg font-bold text-primary">{count}</div>
+                                <div className="text-xs text-muted-foreground uppercase">{datatype}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Other Datatypes */}
+                        {otherDatatypes.size > 0 && (
+                          <div className="space-y-3 bg-gray-100 dark:bg-gray-800 p-4 rounded-lg" data-testid="section-other-datatypes">
+                            <h3 className="text-lg font-semibold text-foreground">{t('otherDatatypes')}</h3>
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                              {Array.from(otherDatatypes).map(datatype => (
+                                <div key={datatype} className="bg-muted p-3 rounded-lg text-center">
+                                  <div className="text-lg font-bold text-amber-600">?</div>
+                                  <div className="text-xs text-muted-foreground uppercase">{datatype}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </CollapsibleContent>
             </Collapsible>
