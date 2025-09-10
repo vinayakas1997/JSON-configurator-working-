@@ -206,7 +206,9 @@ export function PlcConfigBuilder() {
                   id="plcName"
                   value={plcName}
                   onChange={(e) => setPlcName(e.target.value)}
-                  className="mt-1 font-normal"
+                  className={`mt-1 transition-all duration-200 ${
+                    plcName === 'PLC1' ? 'text-muted-foreground font-light' : 'text-foreground font-semibold'
+                  }`}
                   data-testid="input-plc-name"
                 />
               </div>
@@ -218,7 +220,9 @@ export function PlcConfigBuilder() {
                   id="plcIp"
                   value={plcIp}
                   onChange={(e) => setPlcIp(e.target.value)}
-                  className="mt-1 font-normal"
+                  className={`mt-1 transition-all duration-200 ${
+                    plcIp === '192.168.2.2' ? 'text-muted-foreground font-light' : 'text-foreground font-semibold'
+                  }`}
                   data-testid="input-plc-ip"
                 />
               </div>
@@ -230,7 +234,9 @@ export function PlcConfigBuilder() {
                   id="opcuaUrl"
                   value={opcuaUrl}
                   onChange={(e) => setOpcuaUrl(e.target.value)}
-                  className="mt-1 font-normal"
+                  className={`mt-1 transition-all duration-200 ${
+                    opcuaUrl === 'opc.tcp://192.168.1.20:4840' ? 'text-muted-foreground font-light' : 'text-foreground font-semibold'
+                  }`}
                   data-testid="input-opcua-url"
                 />
               </div>
