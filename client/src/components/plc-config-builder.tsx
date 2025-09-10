@@ -36,7 +36,7 @@ export function PlcConfigBuilder() {
   
   // Memory area selections state
   const [selectedMemoryAreas, setSelectedMemoryAreas] = useState<Set<string>>(
-    new Set(['I', 'O', 'A', 'C', 'D', 'E', 'T', 'H'])
+    new Set(['I/O', 'A', 'C', 'D', 'E', 'T', 'H'])
   );
 
   const [currentDate, setCurrentDate] = useState("");
@@ -101,12 +101,15 @@ export function PlcConfigBuilder() {
     const otherDatatypes = new Set<string>();
     
     const standardDatatypes = new Set(['int16', 'int32', 'float32', 'bool', 'string']);
-    const standardMemoryAreas = new Set(['I', 'O', 'A', 'C', 'D', 'E', 'T', 'H']);
     
     addressMappings.forEach(mapping => {
       // Extract memory area from register address
       const firstChar = mapping.plc_reg_add.charAt(0).toUpperCase();
-      if (standardMemoryAreas.has(firstChar)) {
+      
+      // Group I and O into I/O
+      if (firstChar === 'I' || firstChar === 'O') {
+        memoryAreaCounts.set('I/O', (memoryAreaCounts.get('I/O') || 0) + 1);
+      } else if (['A', 'C', 'D', 'E', 'T', 'H'].includes(firstChar)) {
         memoryAreaCounts.set(firstChar, (memoryAreaCounts.get(firstChar) || 0) + 1);
       }
       
@@ -314,7 +317,7 @@ export function PlcConfigBuilder() {
                 <div className="p-4 border-t border-border" data-testid="content-overview">
                   {(() => {
                     const { memoryAreaCounts, datatypeCounts, otherDatatypes } = analyzeAddressMappings();
-                    const standardMemoryAreas = ['I', 'O', 'A', 'C', 'D', 'E', 'T', 'H'];
+                    const standardMemoryAreas = ['I/O', 'A', 'C', 'D', 'E', 'T', 'H'];
                     
                     return (
                       <div className="space-y-6">
@@ -327,22 +330,30 @@ export function PlcConfigBuilder() {
                         {/* Memory Areas */}
                         <div className="space-y-3" data-testid="section-memory-areas">
                           <h3 className="text-lg font-semibold text-foreground">{t('memoryAreas')}</h3>
-                          <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
-                            {standardMemoryAreas.map(area => (
-                              <div key={area} className="flex items-center space-x-2 p-2 rounded border">
-                                <input
-                                  type="checkbox"
-                                  id={`memory-${area}`}
-                                  checked={selectedMemoryAreas.has(area)}
-                                  onChange={() => toggleMemoryArea(area)}
-                                  className="w-4 h-4"
-                                  data-testid={`checkbox-memory-${area}`}
-                                />
-                                <label htmlFor={`memory-${area}`} className="text-sm font-medium cursor-pointer">
-                                  {area}
-                                </label>
-                              </div>
-                            ))}
+                          <div className="grid grid-cols-3 md:grid-cols-7 gap-3">
+                            {standardMemoryAreas.map(area => {
+                              const count = memoryAreaCounts.get(area) || 0;
+                              return (
+                                <div key={area} className="flex items-center justify-between p-3 rounded border bg-muted">
+                                  <div className="flex items-center space-x-2">
+                                    <input
+                                      type="checkbox"
+                                      id={`memory-${area}`}
+                                      checked={selectedMemoryAreas.has(area)}
+                                      onChange={() => toggleMemoryArea(area)}
+                                      className="w-4 h-4"
+                                      data-testid={`checkbox-memory-${area}`}
+                                    />
+                                    <label htmlFor={`memory-${area}`} className="text-sm font-medium cursor-pointer">
+                                      {area}
+                                    </label>
+                                  </div>
+                                  <span className="text-sm font-bold text-primary">
+                                    {count}
+                                  </span>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
 
