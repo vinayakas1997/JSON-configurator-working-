@@ -153,7 +153,7 @@ export function PlcConfigBuilder() {
               </Button>
               <div className="hidden md:flex items-center space-x-2">
                 <span className="text-sm font-medium text-muted-foreground" data-testid="text-session">
-                  {t('sessionText')}
+                  {t('sessionText')} {plcName}
                 </span>
               </div>
             </div>
@@ -187,7 +187,7 @@ export function PlcConfigBuilder() {
       </nav>
 
       {/* Sidebar */}
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} onToggle={toggleSidebar} />
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} onToggle={toggleSidebar} plcName={plcName} />
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">

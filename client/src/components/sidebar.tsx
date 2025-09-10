@@ -6,9 +6,10 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   onToggle: () => void;
+  plcName: string;
 }
 
-export function Sidebar({ isOpen, onClose, onToggle }: SidebarProps) {
+export function Sidebar({ isOpen, onClose, onToggle, plcName }: SidebarProps) {
   const { t } = useLanguage();
 
   return (
@@ -56,7 +57,7 @@ export function Sidebar({ isOpen, onClose, onToggle }: SidebarProps) {
             <div className="p-3 rounded-lg bg-primary text-primary-foreground" data-testid="card-active-session">
               <div className="flex items-center space-x-2">
                 <Microchip className="w-4 h-4" />
-                <span className="font-medium">PLC-CONFIG-01</span>
+                <span className="font-medium">{plcName}</span>
               </div>
               <div className="text-sm opacity-90 mt-1">Active Session</div>
             </div>

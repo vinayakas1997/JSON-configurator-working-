@@ -1,6 +1,6 @@
 export const translations = {
   en: {
-    sessionText: "Session: PLC-CONFIG-01",
+    sessionText: "Session:",
     mainTitle: "PLC Config File Builder",
     sidebarTitle: "PLC Sessions",
     newSessionText: "New Session",
@@ -47,7 +47,7 @@ export const translations = {
     enterDescription: "Enter configuration description..."
   },
   ja: {
-    sessionText: "セッション: PLC-CONFIG-01",
+    sessionText: "セッション:",
     mainTitle: "PLC設定ファイルビルダー",
     sidebarTitle: "PLCセッション",
     newSessionText: "新しいセッション",
