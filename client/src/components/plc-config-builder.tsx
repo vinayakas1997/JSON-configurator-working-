@@ -33,6 +33,11 @@ export function PlcConfigBuilder() {
     { plc_reg_add: "2.01", data_type: "int16", opcua_reg_add: "BOOL_VAR01" },
     { plc_reg_add: "C0001", data_type: "int16", opcua_reg_add: "INT_VAR01" }
   ]);
+  
+  // Memory area selections state
+  const [selectedMemoryAreas, setSelectedMemoryAreas] = useState<Set<string>>(
+    new Set(['I', 'O', 'A', 'C', 'D', 'E', 'T', 'H'])
+  );
 
   const [currentDate, setCurrentDate] = useState("");
 
@@ -87,6 +92,43 @@ export function PlcConfigBuilder() {
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
+  };
+
+  // Analysis functions for overview
+  const analyzeAddressMappings = () => {
+    const memoryAreaCounts = new Map<string, number>();
+    const datatypeCounts = new Map<string, number>();
+    const otherDatatypes = new Set<string>();
+    
+    const standardDatatypes = new Set(['int16', 'int32', 'float32', 'bool', 'string']);
+    const standardMemoryAreas = new Set(['I', 'O', 'A', 'C', 'D', 'E', 'T', 'H']);
+    
+    addressMappings.forEach(mapping => {
+      // Extract memory area from register address
+      const firstChar = mapping.plc_reg_add.charAt(0).toUpperCase();
+      if (standardMemoryAreas.has(firstChar)) {
+        memoryAreaCounts.set(firstChar, (memoryAreaCounts.get(firstChar) || 0) + 1);
+      }
+      
+      // Count datatypes
+      if (standardDatatypes.has(mapping.data_type)) {
+        datatypeCounts.set(mapping.data_type, (datatypeCounts.get(mapping.data_type) || 0) + 1);
+      } else {
+        otherDatatypes.add(mapping.data_type);
+      }
+    });
+    
+    return { memoryAreaCounts, datatypeCounts, otherDatatypes };
+  };
+
+  const toggleMemoryArea = (area: string) => {
+    const newSelected = new Set(selectedMemoryAreas);
+    if (newSelected.has(area)) {
+      newSelected.delete(area);
+    } else {
+      newSelected.add(area);
+    }
+    setSelectedMemoryAreas(newSelected);
   };
 
   return (
