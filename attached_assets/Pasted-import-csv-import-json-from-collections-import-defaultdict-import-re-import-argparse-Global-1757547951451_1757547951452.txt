@@ -1,0 +1,437 @@
+import csv
+import json
+from collections import defaultdict
+import re
+import argparse
+
+# Global counters for different memory types
+e_memory_counter = 1
+d_memory_counter = 1
+w_memory_counter = 1
+h_memory_counter = 1
+a_memory_counter = 1
+t_memory_counter = 1
+c_memory_counter = 1
+channel_counter = 1
+numeric_counter = 1
+
+# Data type dictionary for other data types (key: data_type, value: suffix_number)
+DATA_TYPE_DICTIONARY = {
+    'UDINT': 2,
+    'WORD': 1,
+    'DWORD': 3,
+    'INT': 1,
+    'REAL': 4,
+    'LREAL': 8
+}
+
+def normalize_e_address(address):
+    """
+    Normalize E-type addresses:
+    - If length == 4 (e.g., E0999), convert to E00999 (add 0 after E)
+    - If length == 5 (e.g., E1000), keep as is
+    """
+    if address.startswith('E'):
+        if len(address[1:]) == 4:  # E999 -> E0999, E009 -> E0009
+            return 'E0' + address[1:]
+        elif len(address[1:]) == 3:
+            return 'E00' + address[1:]
+        elif len(address[1:]) == 2:
+            return 'E000' + address[1:]
+        elif len(address[1:]) == 1:
+            return 'E0000' + address[1:]
+        
+        # If length is 5 or more, return as is
+    return address
+
+def normalize_boolean_address(address):
+    """
+    Normalize boolean addresses according to special conditions:
+    a) If address is just a number (like "1100"), convert to "1100.00"
+    b) If address has single digit after decimal (like "1100.1"), convert to "1100.10"
+    """
+    if '.' not in address:
+        # Case a: Just a number, add .00
+        return f"{address}.00"
+    else:
+        # Case b: Has decimal point, check if bit position needs padding
+        base_address, bit_position = address.split('.', 1)
+        # Pad bit position to 2 digits
+        normalized_bit = bit_position.zfill(2)
+        return f"{base_address}.{normalized_bit}"
+
+def get_memory_area_prefix(address):
+    """
+    Extract the memory area prefix from an address.
+    Returns the first letter of the address (e.g., 'A' from 'A200', 'D' from 'D1000')
+    For numeric addresses, returns 'A' as default.
+    """
+    if not address:
+        return 'A'
+    
+    if address[0].isdigit():
+        return 'A'  # Default to 'A' for numeric addresses
+    
+    return address[0].upper()
+
+def generate_opcua_name_new_convention(address, data_type, bit_position=None, is_boolean_channel=False, plc_number=1):
+    """
+    Generate OPCUA naming convention with new format: P{plc_number}_A_{reg_address}_
+    
+    Cases:
+    a) Multiple bool to type channel: P{plc_number}_A_{reg_address}_BC
+    b) Individual boolean: P{plc_number}_A_{reg_address}_B{bit_num}
+    c) For channel: P{plc_number}_A_{reg_address}_C
+    d) Other data types: P{plc_number}_A_{reg_address}_W{value_from_dictionary}
+    
+    Args:
+        address: The register address (e.g., '200', 'A200', 'D1000')
+        data_type: The data type ('BOOL', 'CHANNEL', 'UDINT', etc.)
+        bit_position: For individual booleans, the bit position after the dot
+        is_boolean_channel: True if this is a grouped boolean channel
+        plc_number: The PLC number to include in the naming convention
+    """
+    # Get memory area prefix
+    memory_prefix = get_memory_area_prefix(address)
+    
+    # Extract the numeric part of the address
+    if address[0].isdigit():
+        reg_address = address
+    else:
+        # Remove the memory area prefix to get the numeric part
+        reg_address = address[1:] if len(address) > 1 else address
+    
+    # Handle different cases
+    if data_type == 'BOOL':
+        if is_boolean_channel:
+            # Case a: Multiple bool to type channel
+            return f"P{plc_number}_{memory_prefix}_{reg_address}_BC"
+        else:
+            # Case b: Individual boolean
+            bit_num = bit_position if bit_position is not None else "00"
+            return f"P{plc_number}_{memory_prefix}_{reg_address}_B{bit_num}"
+    
+    elif data_type == 'channel' or data_type == 'CHANNEL':
+        # Case c: For channel
+        return f"P{plc_number}_{memory_prefix}_{reg_address}_C"
+    
+    else:
+        # Case d: Other data types
+        suffix_value = DATA_TYPE_DICTIONARY.get(data_type.upper(), 1)  # Default to 1 if not found
+        return f"P{plc_number}_{memory_prefix}_{reg_address}_W{suffix_value}"
+
+def is_supported_memory_area(address):
+    """
+    Check if the address starts with supported memory area prefixes.
+    Supported areas: D, W, H, A, E, T, C (and numeric addresses)
+    
+    Args:
+        address (str): PLC address to check
+        
+    Returns:
+        bool: True if supported, False otherwise
+    """
+    # The conditions for sending False
+    # Cond1 : No address cannot be empty 
+    if not address:
+        return False
+    # Cond2 : As of now there is no two variables named memory handled 
+    #         [The 'CF' need to be handled properly ]
+    # Logic check for the second place is number or not then return False
+    if len(address) >=3 and not (address[1].isdigit() or address[1] == '.'):
+        return False
+    #---------------------------------------------
+    # Check if address starts with a digit (numeric addresses like 0, 1100, etc.)
+    if address[0].isdigit():
+        return True
+    
+    # Check if address starts with supported memory area prefixes
+    supported_prefixes = ['D', 'W', 'H', 'A', 'E', 'T', 'C']
+    return any(address.startswith(prefix) for prefix in supported_prefixes)
+
+def parse_csv_and_create_json(csv_file_path, output_json_path, plc_name="PLC1", plc_ip="192.168.2.2", opcua_url="opc.tcp://192.168.1.20:4840", plc_number=1):
+    """
+    Parse CSV file and create JSON with grouped boolean addresses using new naming convention.
+    Only processes addresses with supported memory area prefixes: D, W, H, A, E, T, C and numeric addresses.
+    """
+    # Read CSV data with different encoding attempts
+    csv_data = []
+    encodings_to_try = ['utf-8', 'shift_jis', 'cp932', 'iso-8859-1', 'latin-1']
+    
+    for encoding in encodings_to_try:
+        try:
+            with open(csv_file_path, 'r', encoding=encoding) as file:
+                csv_reader = csv.reader(file)
+                for row in csv_reader:
+                    if len(row) >= 4:  # Ensure we have enough columns
+                        csv_data.append({
+                            'data_type': row[1],
+                            'address': row[2],
+                            'description': row[3],
+                            'value': row[4] if len(row) > 4 else '0'
+                        })
+            print(f"Successfully read CSV with encoding: {encoding}")
+            break
+        except UnicodeDecodeError:
+            print(f"Failed to read with encoding: {encoding}")
+            continue
+    
+    if not csv_data:
+        raise Exception("Could not read CSV file with any of the attempted encodings")
+    
+    # Group boolean addresses by base address
+    boolean_groups = defaultdict(list)
+    other_mappings = []
+    skipped_addresses = []  # Track skipped addresses for reporting
+    
+    for item in csv_data:
+        # Check if address is supported
+        if not is_supported_memory_area(item['address']):
+            skipped_addresses.append({
+                'address': item['address'],
+                'data_type': item['data_type'],
+                'description': item['description']
+            })
+            continue  # Skip this address
+        
+        # Apply E address normalization
+        original_address = item['address']
+        normalized_address = normalize_e_address(original_address)
+        
+        if item['data_type'] == 'BOOL':
+            # Normalize the boolean address according to special conditions
+            normalized_address = normalize_boolean_address(normalized_address)
+            
+            # Extract base address and bit position from normalized address
+            base_address = normalized_address.split('.')[0]
+            bit_position = normalized_address.split('.')[1]
+            
+            # Group addresses with the same base
+            boolean_groups[base_address].append({
+                'original_address': original_address,
+                'normalized_address': normalized_address,
+                'bit_position': bit_position,
+                'description': item['description'],
+                'value': item['value']
+            })
+        elif item['data_type'] == 'CHANNEL':
+            # Handle CHANNEL data type
+            # Generate new OPCUA name
+            opcua_name = generate_opcua_name_new_convention(normalized_address, 'CHANNEL', plc_number=plc_number)
+            
+            other_mappings.append({
+                'plc_reg_add': normalized_address,
+                'data_type': 'channel',
+                'opcua_reg_add': opcua_name,
+                'description': item['description']
+            })
+        else:
+            # Handle other data types
+            data_type_map = {
+                'WORD': 'word',
+                'UDINT': 'udint',
+                'DWORD': 'dword',
+                'INT': 'int16',
+                'REAL': 'float',
+                'LREAL': 'double'
+            }
+            
+            # Generate new OPCUA name
+            opcua_name = generate_opcua_name_new_convention(normalized_address, item['data_type'], plc_number=plc_number)
+            
+            other_mappings.append({
+                'plc_reg_add': normalized_address,
+                'data_type': data_type_map.get(item['data_type'], 'int16'),
+                'opcua_reg_add': opcua_name,
+                'description': item['description']
+            })
+    
+    # Create address mappings for grouped boolean addresses
+    address_mappings = []
+    
+    # Process grouped boolean addresses
+    for base_address, bits in boolean_groups.items():
+        if len(bits) > 1:  # Only group if there are multiple bits
+            # Create a channel for the grouped bits (Boolean Channel)
+            # Generate new OPCUA name for boolean channel
+            opcua_name = generate_opcua_name_new_convention(base_address, 'BOOL', is_boolean_channel=True, plc_number=plc_number)
+            
+            # Create metadata for bit positions
+            bit_metadata = {}
+            for bit in bits:
+                bit_key = f"bit_{bit['bit_position']}"  # Use the normalized bit position
+                bit_metadata[bit_key] = {
+                    'address': bit['normalized_address'],
+                    'description': bit['description'],
+                    'bit_position': int(bit['bit_position']) if bit['bit_position'].isdigit() else bit['bit_position']
+                }
+            
+            address_mappings.append({
+                'plc_reg_add': base_address,
+                'data_type': 'channel', # (stack of boolean)
+                'opcua_reg_add': opcua_name,
+                'description': f"Boolean channel for address {base_address}",
+                'metadata': {
+                    'bit_count': len(bits),
+                    'bit_mappings': bit_metadata
+                }
+            })
+        else:
+            # Single bit, add as individual mapping
+            bit = bits[0]
+            # Generate new OPCUA name for individual boolean
+            opcua_name = generate_opcua_name_new_convention(
+                bit['normalized_address'].split('.')[0], 
+                'BOOL', 
+                bit_position=bit['bit_position'],
+                plc_number=plc_number
+            )
+            
+            address_mappings.append({
+                'plc_reg_add': bit['normalized_address'],
+                'data_type': 'bool',
+                'opcua_reg_add': opcua_name,
+                'description': bit['description']
+            })
+    
+    # Add other mappings
+    address_mappings.extend(other_mappings)
+    
+    # Create the final JSON structure
+    json_output = {
+        "plcs": [
+            {
+                "plc_name": plc_name,
+                "plc_ip": plc_ip,
+                "opcua_url": opcua_url,
+                "address_mappings": address_mappings
+            }
+        ]
+    }
+    
+    # Write to JSON file
+    with open(output_json_path, 'w', encoding='utf-8') as json_file:
+        json.dump(json_output, json_file, indent=4, ensure_ascii=False)
+    
+    print(f"Conversion completed. Output saved to {output_json_path}")
+    print(f"Total mappings created: {len(address_mappings)}")
+    print(f"Boolean channels created: {len([m for m in address_mappings if m['data_type'] == 'channel'])}")
+    
+    # Report skipped addresses
+    if skipped_addresses:
+        print(f"\n⚠️  SKIPPED ADDRESSES: {len(skipped_addresses)} addresses were skipped (unsupported memory areas)")
+        
+        # Group skipped addresses by memory area prefix
+        skipped_by_prefix = defaultdict(list)
+        for addr in skipped_addresses:
+            prefix = addr['address'][0] if addr['address'] else 'Unknown'
+            # Extract full prefix (e.g., "CF" from "CF105")
+            match = re.match(r'^([A-Z]+)', addr['address'])
+            if match:
+                prefix = match.group(1)
+            skipped_by_prefix[prefix].append(addr)
+        
+        print("   Skipped memory areas:")
+        for prefix, addresses in skipped_by_prefix.items():
+            print(f"     • {prefix}: {len(addresses)} addresses")
+    
+    return json_output, skipped_addresses
+
+if __name__ == "__main__":
+    # Set up command line argument parsing
+    parser = argparse.ArgumentParser(description='Convert CSV file to JSON format for OPC UA PLC data mapping with new naming convention')
+    
+    parser.add_argument('--csv', 
+                        default='database.csv',
+                        help='Input CSV file path (default: database.csv)')
+    
+    parser.add_argument('--json', 
+                        default='converted_plc_data_new_naming',
+                        help='Output JSON file name without extension (default: converted_plc_data_new_naming)')
+    
+    parser.add_argument('--plc-name', 
+                        default='PLC1',
+                        help='PLC name (default: PLC1)')
+    
+    parser.add_argument('--plc-ip', 
+                        default='192.168.2.2',
+                        help='PLC IP address (default: 192.168.2.2)')
+    
+    parser.add_argument('--opcua-url', 
+                        default='opc.tcp://192.168.1.20:4840',
+                        help='OPC UA server URL (default: opc.tcp://192.168.1.20:4840)')
+    
+    parser.add_argument('--plc-no', 
+                        type=int,
+                        default=1,
+                        help='PLC number for naming convention (default: 1)')
+    
+    # Parse arguments
+    args = parser.parse_args()
+    
+    # Ensure JSON filename has .json extension
+    json_filename = args.json if args.json.endswith('.json') else f"{args.json}.json"
+    
+    print(f"Configuration:")
+    print(f"  Input CSV file: {args.csv}")
+    print(f"  Output JSON file: {json_filename}")
+    print(f"  PLC Name: {args.plc_name}")
+    print(f"  PLC IP: {args.plc_ip}")
+    print(f"  OPC UA URL: {args.opcua_url}")
+    print(f"  PLC Number: {args.plc_no}")
+    print("-" * 50)
+    
+    # Convert the CSV to JSON
+    result, skipped_addresses = parse_csv_and_create_json(
+        args.csv, 
+        json_filename, 
+        args.plc_name, 
+        args.plc_ip, 
+        args.opcua_url,
+        args.plc_no
+    )
+    
+    # Print some statistics
+    print("\nConversion Summary:")
+    print("=" * 50)
+    
+    address_mappings = result['plcs'][0]['address_mappings']
+    
+    # Count different types
+    channels = [m for m in address_mappings if m['data_type'] == 'channel']
+    individual_bools = [m for m in address_mappings if m['data_type'] == 'bool']
+    other_types = [m for m in address_mappings if m['data_type'] not in ['bool', 'channel']]
+    
+    print(f"Boolean channels: {len(channels)}")
+    print(f"Individual boolean addresses: {len(individual_bools)}")
+    print(f"Other data types: {len(other_types)}")
+    
+    # Show some examples with new naming convention
+    if channels:
+        print("\nExample Boolean Channels (New Naming Convention):")
+        for i, channel in enumerate(channels[:3]):  # Show first 3 examples
+            print(f"\nChannel {i+1}: {channel['opcua_reg_add']}")
+            print(f"  Base Address: {channel['plc_reg_add']}")
+            if 'metadata' in channel:
+                print(f"  Bit Count: {channel['metadata']['bit_count']}")
+                print(f"  Bit Mappings: {list(channel['metadata']['bit_mappings'].keys())}")
+            else:
+                print(f"  Description: {channel['description']}")
+    
+    if individual_bools:
+        print("\nExample Individual Booleans (New Naming Convention):")
+        for i, bool_addr in enumerate(individual_bools[:3]):  # Show first 3 examples
+            print(f"  {bool_addr['opcua_reg_add']} -> {bool_addr['plc_reg_add']}")
+    
+    if other_types:
+        print("\nExample Other Data Types (New Naming Convention):")
+        for i, other_addr in enumerate(other_types[:3]):  # Show first 3 examples
+            print(f"  {other_addr['opcua_reg_add']} -> {other_addr['plc_reg_add']} ({other_addr['data_type']})")
+    
+    print("\nNaming Convention Summary:")
+    print("=" * 50)
+    print(f"a) Boolean channels (multiple bits): P{args.plc_no}_A_{{reg_address}}_BC")
+    print(f"b) Individual booleans: P{args.plc_no}_A_{{reg_address}}_B{{bit_num}}")
+    print(f"c) Regular channels: P{args.plc_no}_A_{{reg_address}}_C")
+    print(f"d) Other data types: P{args.plc_no}_A_{{reg_address}}_W{{dictionary_value}}")
+    print(f"\nData type dictionary: {DATA_TYPE_DICTIONARY}")
