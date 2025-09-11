@@ -10,6 +10,7 @@ import type { AddressMapping } from "@shared/schema";
 interface AddressMappingsTableProps {
   mappings: AddressMapping[];
   onMappingsChange: (mappings: AddressMapping[]) => void;
+  selectedMemoryAreas?: Set<string>;
 }
 
 // 16-bit grid component for boolean channel visualization
@@ -83,7 +84,7 @@ function BooleanChannelGrid({
   );
 }
 
-export function AddressMappingsTable({ mappings, onMappingsChange }: AddressMappingsTableProps) {
+export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemoryAreas = new Set() }: AddressMappingsTableProps) {
   const { t } = useLanguage();
   
   // State for tracking selected registers (initially all selected)
@@ -126,11 +127,32 @@ export function AddressMappingsTable({ mappings, onMappingsChange }: AddressMapp
     return usedBits;
   };
 
-  // Initialize all registers as selected when mappings change
+  // Helper function to classify memory area from mapping
+  const getMemoryAreaFromMapping = (mapping: AddressMapping): string => {
+    const firstChar = mapping.plc_reg_add.charAt(0).toUpperCase();
+    // Group I and O into I/O, and numeric addresses as I/O
+    if (firstChar === 'I' || firstChar === 'O' || /^\d/.test(mapping.plc_reg_add)) {
+      return 'I/O';
+    }
+    return firstChar;
+  };
+
+  // Create filtered visible mappings based on selected memory areas
+  const visibleMappings = useMemo(() => {
+    return mappings.map((mapping, originalIndex) => ({ mapping, originalIndex }))
+      .filter(({ mapping }) => {
+        // Always show empty addresses (new mappings)
+        if (!mapping.plc_reg_add || mapping.plc_reg_add.trim() === '') return true;
+        const memoryArea = getMemoryAreaFromMapping(mapping);
+        return selectedMemoryAreas.has(memoryArea);
+      });
+  }, [mappings, selectedMemoryAreas]);
+
+  // Initialize registers as selected based on visible mappings
   useEffect(() => {
-    const allIndices = new Set(mappings.map((_, index) => index));
-    setSelectedRegisters(allIndices);
-  }, [mappings]);
+    const visibleIndices = new Set(visibleMappings.map(({ originalIndex }) => originalIndex));
+    setSelectedRegisters(visibleIndices);
+  }, [visibleMappings]);
 
   // Derive bit states directly from current mappings (more reliable than useEffect)
   const channelBitStates = useMemo(() => {
@@ -165,10 +187,11 @@ export function AddressMappingsTable({ mappings, onMappingsChange }: AddressMapp
   };
 
   const toggleSelectAll = () => {
-    if (selectedRegisters.size === mappings.length) {
+    const visibleIndices = visibleMappings.map(({ originalIndex }) => originalIndex);
+    if (selectedRegisters.size === visibleIndices.length && visibleIndices.length > 0) {
       setSelectedRegisters(new Set());
     } else {
-      setSelectedRegisters(new Set(mappings.map((_, index) => index)));
+      setSelectedRegisters(new Set(visibleIndices));
     }
   };
 
@@ -242,6 +265,13 @@ export function AddressMappingsTable({ mappings, onMappingsChange }: AddressMapp
         </Button>
       </div>
       
+      {/* Dynamic variable count display */}
+      <div className="mb-4 px-2">
+        <span className="text-sm font-medium text-muted-foreground" data-testid="text-total-selected">
+          total selected variable = {selectedRegisters.size}
+        </span>
+      </div>
+      
       <div className="overflow-x-auto">
         <table className="w-full border border-border rounded-lg" data-testid="table-mappings">
           <thead className="bg-muted">
@@ -249,7 +279,7 @@ export function AddressMappingsTable({ mappings, onMappingsChange }: AddressMapp
               <th className="px-4 py-3 text-left text-sm font-medium text-foreground" data-testid="header-select">
                 <div className="flex items-center space-x-2">
                   <Checkbox
-                    checked={selectedRegisters.size === mappings.length && mappings.length > 0}
+                    checked={selectedRegisters.size === visibleMappings.length && visibleMappings.length > 0}
                     onCheckedChange={toggleSelectAll}
                     data-testid="checkbox-select-all"
                   />
@@ -271,33 +301,33 @@ export function AddressMappingsTable({ mappings, onMappingsChange }: AddressMapp
             </tr>
           </thead>
           <tbody>
-            {mappings.map((mapping, index) => {
+            {visibleMappings.map(({ mapping, originalIndex }) => {
               const isBoolChannelEntry = isBoolChannel(mapping);
-              const isExpanded = expandedBoolChannels.has(index);
-              const selectedBits = channelBitStates.get(index) || new Set();
+              const isExpanded = expandedBoolChannels.has(originalIndex);
+              const selectedBits = channelBitStates.get(originalIndex) || new Set();
               
               return (
-                <Fragment key={index}>
+                <Fragment key={originalIndex}>
                   <tr 
                     className={`table-row border-t border-border fade-in ${
                       isBoolChannelEntry ? 'bg-orange-50 dark:bg-orange-900/20' : ''
                     }`} 
-                    data-testid={`row-mapping-${index}`}
+                    data-testid={`row-mapping-${originalIndex}`}
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center space-x-2">
                         <Checkbox
-                          checked={selectedRegisters.has(index)}
-                          onCheckedChange={() => toggleRegisterSelection(index)}
-                          data-testid={`checkbox-select-${index}`}
+                          checked={selectedRegisters.has(originalIndex)}
+                          onCheckedChange={() => toggleRegisterSelection(originalIndex)}
+                          data-testid={`checkbox-select-${originalIndex}`}
                         />
                         {isBoolChannelEntry && (
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => toggleBoolChannelExpansion(index)}
+                            onClick={() => toggleBoolChannelExpansion(originalIndex)}
                             className="p-1 h-6 w-6"
-                            data-testid={`button-expand-${index}`}
+                            data-testid={`button-expand-${originalIndex}`}
                           >
                             {isExpanded ? (
                               <ChevronDown className="w-3 h-3" />
@@ -311,20 +341,20 @@ export function AddressMappingsTable({ mappings, onMappingsChange }: AddressMapp
                     <td className="px-4 py-3">
                       <Input
                         value={mapping.plc_reg_add}
-                        onChange={(e) => updateMapping(index, 'plc_reg_add', e.target.value)}
+                        onChange={(e) => updateMapping(originalIndex, 'plc_reg_add', e.target.value)}
                         placeholder={t('enterRegisterAddress')}
                         className="text-sm"
-                        data-testid={`input-plc-reg-${index}`}
+                        data-testid={`input-plc-reg-${originalIndex}`}
                       />
                     </td>
                     <td className="px-4 py-3">
                       <Select 
                         value={mapping.data_type} 
                         onValueChange={(value: AddressMapping['data_type']) => 
-                          updateMapping(index, 'data_type', value)
+                          updateMapping(originalIndex, 'data_type', value)
                         }
                       >
-                        <SelectTrigger className="text-sm" data-testid={`select-data-type-${index}`}>
+                        <SelectTrigger className="text-sm" data-testid={`select-data-type-${originalIndex}`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -347,19 +377,19 @@ export function AddressMappingsTable({ mappings, onMappingsChange }: AddressMapp
                     <td className="px-4 py-3">
                       <Input
                         value={mapping.opcua_reg_add}
-                        onChange={(e) => updateMapping(index, 'opcua_reg_add', e.target.value)}
+                        onChange={(e) => updateMapping(originalIndex, 'opcua_reg_add', e.target.value)}
                         placeholder={t('enterOpcuaRegister')}
                         className="text-sm"
-                        data-testid={`input-opcua-reg-${index}`}
+                        data-testid={`input-opcua-reg-${originalIndex}`}
                       />
                     </td>
                     <td className="px-4 py-3">
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => removeMapping(index)}
+                        onClick={() => removeMapping(originalIndex)}
                         className="text-destructive hover:text-destructive/80 hover:bg-destructive/10"
-                        data-testid={`button-delete-mapping-${index}`}
+                        data-testid={`button-delete-mapping-${originalIndex}`}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -367,12 +397,12 @@ export function AddressMappingsTable({ mappings, onMappingsChange }: AddressMapp
                   </tr>
                   {/* Expandable Boolean Channel Grid */}
                   {isBoolChannelEntry && isExpanded && (
-                    <tr data-testid={`row-expanded-${index}`}>
+                    <tr data-testid={`row-expanded-${originalIndex}`}>
                       <td colSpan={5} className="px-4 py-0 bg-orange-50 dark:bg-orange-900/20">
                         <BooleanChannelGrid
                           plcAddress={mapping.plc_reg_add}
                           selectedBits={Array.from(selectedBits)}
-                          onBitToggle={(bit) => toggleBit(index, bit)}
+                          onBitToggle={(bit) => toggleBit(originalIndex, bit)}
                         />
                       </td>
                     </tr>
@@ -380,7 +410,7 @@ export function AddressMappingsTable({ mappings, onMappingsChange }: AddressMapp
                 </Fragment>
               );
             })}
-            {mappings.length === 0 && (
+            {visibleMappings.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground" data-testid="text-no-mappings">
                   No address mappings configured. Click "Add New Mapping" to get started.

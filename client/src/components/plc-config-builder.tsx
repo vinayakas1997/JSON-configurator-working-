@@ -657,11 +657,33 @@ export function PlcConfigBuilder() {
                   <AddressMappingsTable 
                     mappings={addressMappings}
                     onMappingsChange={setAddressMappings}
+                    selectedMemoryAreas={selectedMemoryAreas}
                   />
                 </div>
               </CollapsibleContent>
             </Collapsible>
           </Card>
+
+          {/* JSON buttons outside the card */}
+          <div className="mt-4 flex justify-center space-x-4">
+            <Button
+              variant="secondary"
+              onClick={() => setShowJsonModal(true)}
+              className="flex items-center space-x-2"
+              data-testid="button-preview-json-outside"
+            >
+              <Eye className="w-4 h-4" />
+              <span>{t('previewText')}</span>
+            </Button>
+            <Button
+              onClick={handleExportJson}
+              className="flex items-center space-x-2"
+              data-testid="button-export-json-outside"
+            >
+              <Download className="w-4 h-4" />
+              <span>{t('exportText')}</span>
+            </Button>
+          </div>
         </div>
       </div>
 
