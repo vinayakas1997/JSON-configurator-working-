@@ -233,7 +233,7 @@ export function PlcConfigBuilder() {
         {showUploadCard && (
           <FileUploadCard 
             onFileProcessed={handleFileProcessed}
-            plcNo={plcNo}
+            plcNo={typeof plcNo === 'number' ? plcNo : parseInt(plcNo.toString()) || 1}
           />
         )}
 
