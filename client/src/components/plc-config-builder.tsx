@@ -100,6 +100,22 @@ export function PlcConfigBuilder() {
     return firstChar;
   };
 
+  // Helper function to remove duplicate entries based on OPC UA register name
+  const dedupeByOpcuaName = (mappings: any[], plcName: string): any[] => {
+    const seen = new Set<string>();
+    const deduplicated: any[] = [];
+    
+    for (const mapping of mappings) {
+      const key = `${plcName}|${mapping.opcua_reg_add}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        deduplicated.push(mapping);
+      }
+    }
+    
+    return deduplicated;
+  };
+
   const generateJson = (): string => {
     // Filter and transform address mappings based on selections
     const filteredMappings = addressMappings
@@ -136,12 +152,15 @@ export function PlcConfigBuilder() {
         return result;
       });
 
+    // Remove duplicates based on OPC UA register name (keep first occurrence)
+    const deduplicatedMappings = dedupeByOpcuaName(filteredMappings, plcName);
+
     const config: ConfigFile = {
       plcs: [{
         plc_name: plcName,
         plc_ip: plcIp,
         opcua_url: opcuaUrl,
-        address_mappings: filteredMappings as any
+        address_mappings: deduplicatedMappings as any
       }]
     };
     return JSON.stringify(config, null, 2);
