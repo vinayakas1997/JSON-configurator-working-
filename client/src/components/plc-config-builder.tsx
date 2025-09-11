@@ -12,6 +12,7 @@ import { FileUploadCard } from "./file-upload-card";
 import { AddressMappingsTable } from "./address-mappings-table";
 import { JsonPreviewModal } from "./json-preview-modal";
 import type { AddressMapping, ConfigFile } from "@shared/schema";
+import type { ParseResult } from "@/lib/plc-parser";
 
 export function PlcConfigBuilder() {
   const { language, setLanguage, t } = useLanguage();
@@ -39,6 +40,9 @@ export function PlcConfigBuilder() {
   const [selectedMemoryAreas, setSelectedMemoryAreas] = useState<Set<string>>(
     new Set(['I/O', 'A', 'C', 'D', 'E', 'T', 'H'])
   );
+  
+  // File parsing results state
+  const [parseResult, setParseResult] = useState<ParseResult | null>(null);
 
   const [currentDate, setCurrentDate] = useState("");
 
@@ -64,8 +68,11 @@ export function PlcConfigBuilder() {
     return JSON.stringify(config, null, 2);
   };
 
-  const handleFileProcessed = (mappings: AddressMapping[]) => {
+  const handleFileProcessed = (mappings: AddressMapping[], result?: ParseResult) => {
     setAddressMappings(mappings);
+    if (result) {
+      setParseResult(result);
+    }
     // Keep the upload card visible after importing
   };
 
@@ -98,6 +105,7 @@ export function PlcConfigBuilder() {
   // Analysis functions for overview
   const analyzeAddressMappings = () => {
     const memoryAreaCounts = new Map<string, number>();
+    const memoryAreaAddresses = new Map<string, string[]>();
     const datatypeCounts = new Map<string, number>();
     const otherDatatypes = new Set<string>();
     
@@ -107,12 +115,23 @@ export function PlcConfigBuilder() {
       // Extract memory area from register address
       const firstChar = mapping.plc_reg_add.charAt(0).toUpperCase();
       
-      // Group I and O into I/O
-      if (firstChar === 'I' || firstChar === 'O') {
-        memoryAreaCounts.set('I/O', (memoryAreaCounts.get('I/O') || 0) + 1);
+      let memoryArea: string;
+      
+      // Group I and O into I/O, and numeric addresses (starting with digit) as I/O
+      if (firstChar === 'I' || firstChar === 'O' || /^\d/.test(mapping.plc_reg_add)) {
+        memoryArea = 'I/O';
       } else if (['A', 'C', 'D', 'E', 'T', 'H'].includes(firstChar)) {
-        memoryAreaCounts.set(firstChar, (memoryAreaCounts.get(firstChar) || 0) + 1);
+        memoryArea = firstChar;
+      } else {
+        return; // Skip unsupported memory areas
       }
+      
+      // Count and store addresses for each memory area
+      memoryAreaCounts.set(memoryArea, (memoryAreaCounts.get(memoryArea) || 0) + 1);
+      if (!memoryAreaAddresses.has(memoryArea)) {
+        memoryAreaAddresses.set(memoryArea, []);
+      }
+      memoryAreaAddresses.get(memoryArea)!.push(mapping.plc_reg_add);
       
       // Count datatypes
       if (standardDatatypes.has(mapping.data_type)) {
@@ -122,7 +141,7 @@ export function PlcConfigBuilder() {
       }
     });
     
-    return { memoryAreaCounts, datatypeCounts, otherDatatypes };
+    return { memoryAreaCounts, memoryAreaAddresses, datatypeCounts, otherDatatypes };
   };
 
   const toggleMemoryArea = (area: string) => {
@@ -232,7 +251,7 @@ export function PlcConfigBuilder() {
         {/* File Upload Card */}
         {showUploadCard && (
           <FileUploadCard 
-            onFileProcessed={handleFileProcessed}
+            onFileProcessed={(mappings, result) => handleFileProcessed(mappings, result)}
             plcNo={typeof plcNo === 'number' ? plcNo : parseInt(plcNo.toString()) || 1}
           />
         )}
@@ -348,15 +367,47 @@ export function PlcConfigBuilder() {
               <CollapsibleContent>
                 <div className="p-4 border-t border-border" data-testid="content-overview">
                   {(() => {
-                    const { memoryAreaCounts, datatypeCounts, otherDatatypes } = analyzeAddressMappings();
+                    const { memoryAreaCounts, memoryAreaAddresses, datatypeCounts, otherDatatypes } = analyzeAddressMappings();
                     const standardMemoryAreas = ['I/O', 'A', 'C', 'D', 'E', 'T', 'H'];
                     
                     return (
                       <div className="space-y-6">
-                        {/* Total Variables Found */}
-                        <div className="bg-muted p-4 rounded-lg" data-testid="stat-total-variables">
-                          <div className="text-2xl font-bold text-primary">{addressMappings.length}</div>
-                          <div className="text-sm text-muted-foreground">{t('totalVariables')}</div>
+                        {/* Total Variables Imported and Skipped Records */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="bg-muted p-4 rounded-lg" data-testid="stat-total-variables">
+                            <div className="text-2xl font-bold text-primary">{addressMappings.length}</div>
+                            <div className="text-sm text-muted-foreground">{t('totalVariables')}</div>
+                          </div>
+                          
+                          {/* Show skipped records count from file upload results if available */}
+                          {parseResult && parseResult.stats.skippedRecords > 0 && (
+                            <Collapsible>
+                              <CollapsibleTrigger asChild>
+                                <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors" data-testid="stat-skipped-records">
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <div className="text-2xl font-bold text-orange-600">{parseResult.stats.skippedRecords}</div>
+                                      <div className="text-sm text-muted-foreground">Skipped Records</div>
+                                    </div>
+                                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                                  </div>
+                                </div>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent>
+                                <div className="mt-2 p-3 bg-orange-50 dark:bg-orange-900/20 rounded border-l-4 border-orange-500">
+                                  <h4 className="font-medium text-orange-800 dark:text-orange-200 mb-2">Skipped Addresses:</h4>
+                                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                                    {parseResult.skippedAddresses.map((skipped, index) => (
+                                      <div key={index} className="text-xs bg-white dark:bg-gray-800 p-2 rounded border">
+                                        <div className="font-mono text-orange-700 dark:text-orange-300">{skipped.address}</div>
+                                        <div className="text-gray-600 dark:text-gray-400">{skipped.data_type} - {skipped.reason}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </CollapsibleContent>
+                            </Collapsible>
+                          )}
                         </div>
 
                         {/* Memory Areas */}

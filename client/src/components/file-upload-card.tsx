@@ -12,7 +12,7 @@ import { parseCSVData, type ParseResult } from "@/lib/plc-parser";
 import Encoding from "encoding-japanese";
 
 interface FileUploadCardProps {
-  onFileProcessed: (mappings: AddressMapping[]) => void;
+  onFileProcessed: (mappings: AddressMapping[], result?: ParseResult) => void;
   onClose?: () => void;
   plcNo?: number;
 }
@@ -194,7 +194,7 @@ export function FileUploadCard({ onFileProcessed, onClose, plcNo = 1 }: FileUplo
 
   const handleImport = () => {
     if (parseResult) {
-      onFileProcessed(parseResult.addressMappings);
+      onFileProcessed(parseResult.addressMappings, parseResult);
       // Keep parseResult to maintain the statistics display
       toast({
         title: "Import Successful", 
