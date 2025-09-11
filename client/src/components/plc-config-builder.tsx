@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { Menu, Globe, ChevronDown, BarChart, Table, Eye, Download } from "lucide-react";
+import { Menu, Globe, ChevronDown, BarChart, Table, Eye, Download, List } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +25,7 @@ export function PlcConfigBuilder() {
   const [overviewExpanded, setOverviewExpanded] = useState(false);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [showJsonModal, setShowJsonModal] = useState(false);
+  const [showOpcuaListModal, setShowOpcuaListModal] = useState(false);
   
   // Configuration state
   const [configFileName, setConfigFileName] = useState("plc_config");
@@ -114,6 +116,44 @@ export function PlcConfigBuilder() {
     }
     
     return deduplicated;
+  };
+
+  // Helper function to generate OPCUA list in the specified format
+  const generateOpcuaList = (): string => {
+    // Filter and get mappings based on selections (similar to JSON generation)
+    const filteredMappings = addressMappings
+      .map((mapping, index) => ({ mapping, index }))
+      .filter(({ mapping, index }) => {
+        // Filter by memory area selection
+        const memoryArea = getMemoryAreaFromMapping(mapping);
+        if (!selectedMemoryAreas.has(memoryArea)) {
+          return false;
+        }
+        
+        // Filter by individual register selection (if no registers selected, select all)
+        if (selectedRegisters.size > 0 && !selectedRegisters.has(index)) {
+          return false;
+        }
+        
+        return true;
+      })
+      .map(({ mapping }) => mapping);
+
+    // Remove duplicates based on OPC UA register name
+    const deduplicatedMappings = dedupeByOpcuaName(filteredMappings, plcName);
+
+    // Generate the OPCUA list format
+    const opcuaLines = deduplicatedMappings.map(mapping => {
+      const opcuaName = mapping.opcua_reg_add;
+      const dataType = mapping.data_type.toUpperCase();
+      
+      // If data type is BOOL, use BOOL; otherwise use STRING
+      const opcuaType = dataType === 'BOOL' ? 'BOOL' : 'STRING';
+      
+      return `${opcuaName}:${opcuaType};`;
+    });
+
+    return opcuaLines.join('\n');
   };
 
   const generateJson = (): string => {
@@ -707,6 +747,15 @@ export function PlcConfigBuilder() {
                   <div className="mb-4 flex justify-end space-x-2">
                     <Button
                       variant="secondary"
+                      onClick={() => setShowOpcuaListModal(true)}
+                      className="flex items-center space-x-2 bg-orange-100 hover:bg-orange-200 text-orange-800 border-orange-300 dark:bg-orange-900/20 dark:hover:bg-orange-900/30 dark:text-orange-200 dark:border-orange-800"
+                      data-testid="button-generate-opcua-list"
+                    >
+                      <List className="w-4 h-4" />
+                      <span>Generate OPCUA LIST</span>
+                    </Button>
+                    <Button
+                      variant="secondary"
                       onClick={() => setShowJsonModal(true)}
                       className="flex items-center space-x-2"
                       data-testid="button-preview-json"
@@ -740,6 +789,15 @@ export function PlcConfigBuilder() {
           <div className="mt-4 flex justify-center space-x-4">
             <Button
               variant="secondary"
+              onClick={() => setShowOpcuaListModal(true)}
+              className="flex items-center space-x-2 bg-orange-100 hover:bg-orange-200 text-orange-800 border-orange-300 dark:bg-orange-900/20 dark:hover:bg-orange-900/30 dark:text-orange-200 dark:border-orange-800"
+              data-testid="button-generate-opcua-list-outside"
+            >
+              <List className="w-4 h-4" />
+              <span>Generate OPCUA LIST</span>
+            </Button>
+            <Button
+              variant="secondary"
               onClick={() => setShowJsonModal(true)}
               className="flex items-center space-x-2"
               data-testid="button-preview-json-outside"
@@ -765,6 +823,23 @@ export function PlcConfigBuilder() {
         onClose={() => setShowJsonModal(false)}
         jsonContent={generateJson()}
       />
+      
+      {/* OPCUA List Modal */}
+      <Dialog open={showOpcuaListModal} onOpenChange={setShowOpcuaListModal}>
+        <DialogContent className="max-w-4xl max-h-96 flex flex-col" data-testid="modal-opcua-list">
+          <DialogHeader>
+            <DialogTitle data-testid="text-opcua-modal-title">OPCUA Register List</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto">
+            <pre 
+              className="bg-muted p-4 rounded text-sm overflow-auto font-mono"
+              data-testid="text-opcua-content"
+            >
+              {generateOpcuaList()}
+            </pre>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
