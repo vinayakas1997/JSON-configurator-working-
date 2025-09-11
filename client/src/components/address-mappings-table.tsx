@@ -135,6 +135,84 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
     return usedBits;
   };
 
+  // Memoized helper to find existing bit data from boolean channels and other modified channels
+  const getExistingBitData = useMemo(() => {
+    const addressToBitsMap = new Map<string, { boolBits: Set<number>, modifiedBits: Set<number> }>();
+    
+    mappings.forEach((mapping, index) => {
+      const mappingBaseAddress = mapping.plc_reg_add.split('.')[0];
+      
+      if (!addressToBitsMap.has(mappingBaseAddress)) {
+        addressToBitsMap.set(mappingBaseAddress, { boolBits: new Set(), modifiedBits: new Set() });
+      }
+      
+      const bitData = addressToBitsMap.get(mappingBaseAddress)!;
+      
+      // Extract bits from boolean channel metadata
+      if (isBoolChannel(mapping) && (mapping as any).metadata?.bit_mappings) {
+        const bitMappings = (mapping as any).metadata.bit_mappings;
+        Object.values(bitMappings).forEach((bitInfo: any) => {
+          if (typeof bitInfo.bit_position === 'number' && bitInfo.bit_position >= 0 && bitInfo.bit_position <= 15) {
+            bitData.boolBits.add(bitInfo.bit_position);
+          }
+        });
+      }
+      
+      // Extract bits from modified channel metadata
+      if (isModifiedChannel(mapping) && (mapping as any).metadata?.bits) {
+        const bits = (mapping as any).metadata.bits;
+        bits.forEach((bit: number) => {
+          if (typeof bit === 'number' && bit >= 0 && bit <= 15) {
+            bitData.modifiedBits.add(bit);
+          }
+        });
+      }
+      
+      // Extract bits from individual BOOL entries
+      if (mapping.data_type === 'BOOL' && mapping.plc_reg_add.includes('.')) {
+        const bitPart = mapping.plc_reg_add.split('.')[1];
+        if (bitPart) {
+          let normalizedBitPart: string;
+          if (bitPart.length === 1) {
+            normalizedBitPart = bitPart + '0';
+          } else {
+            normalizedBitPart = bitPart;
+          }
+          
+          const bitNumber = parseInt(normalizedBitPart);
+          if (!isNaN(bitNumber) && bitNumber >= 0 && bitNumber <= 15) {
+            bitData.boolBits.add(bitNumber);
+          }
+        }
+      }
+    });
+    
+    return addressToBitsMap;
+  }, [mappings]);
+  
+  // Helper to get existing bits for a specific address excluding current mapping
+  const getExistingBitsForAddress = (baseAddress: string, currentIndex: number): { boolBits: number[], modifiedBits: number[] } => {
+    const bitData = getExistingBitData.get(baseAddress);
+    if (!bitData) {
+      return { boolBits: [], modifiedBits: [] };
+    }
+    
+    // Get current mapping's selected bits to exclude from modified bits
+    const currentMapping = mappings[currentIndex];
+    const currentModifiedBits = new Set<number>();
+    if (isModifiedChannel(currentMapping) && (currentMapping as any).metadata?.bits) {
+      (currentMapping as any).metadata.bits.forEach((bit: number) => currentModifiedBits.add(bit));
+    }
+    
+    // Filter out current mapping's bits from modified bits
+    const filteredModifiedBits = Array.from(bitData.modifiedBits).filter(bit => !currentModifiedBits.has(bit));
+    
+    return {
+      boolBits: Array.from(bitData.boolBits),
+      modifiedBits: filteredModifiedBits
+    };
+  };
+
   // Helper function to classify memory area from mapping
   const getMemoryAreaFromMapping = (mapping: AddressMapping): string => {
     const firstChar = mapping.plc_reg_add.charAt(0).toUpperCase();
@@ -394,6 +472,8 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
               const selectedBits = channelBitStates.get(originalIndex) || new Set();
               const modifiedBits = modifiedChannelBits.get(originalIndex) || new Set();
               const modifiedComment = modifiedChannelComments.get(originalIndex) || '';
+              const baseAddress = mapping.plc_reg_add.split('.')[0];
+              const existingBitData = isModifiedChannelEntry ? getExistingBitsForAddress(baseAddress, originalIndex) : { boolBits: [], modifiedBits: [] };
               
               return (
                 <Fragment key={originalIndex}>
@@ -508,13 +588,22 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
                           <div className="space-y-4">
                             {/* Bit Selection Grid */}
                             <div className="space-y-1">
-                              <div className="text-xs text-blue-700 dark:text-blue-300 mb-2">Select Required Bits:</div>
+                              <div className="text-xs text-blue-700 dark:text-blue-300 mb-2">
+                                Select Required Bits:
+                                {(existingBitData.boolBits.length > 0 || existingBitData.modifiedBits.length > 0) && (
+                                  <span className="ml-2 text-orange-600 dark:text-orange-400">
+                                    (Orange = in boolean channel, Yellow = in other modified channels)
+                                  </span>
+                                )}
+                              </div>
                               {/* Top row: bits 15-8 */}
                               <div className="flex space-x-1">
                                 <span className="text-xs font-mono text-muted-foreground w-8">15</span>
                                 {Array.from({ length: 8 }, (_, i) => {
                                   const bitIndex = 15 - i;
                                   const isSelected = modifiedBits.has(bitIndex);
+                                  const isBoolExisting = existingBitData.boolBits.includes(bitIndex);
+                                  const isModifiedExisting = existingBitData.modifiedBits.includes(bitIndex);
                                   return (
                                     <button
                                       key={bitIndex}
@@ -522,9 +611,14 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
                                       className={`w-6 h-6 text-xs font-mono border rounded ${
                                         isSelected 
                                           ? 'bg-blue-500 text-white border-blue-600' 
+                                          : isBoolExisting
+                                          ? 'bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200 border-orange-400 dark:border-orange-600 hover:bg-orange-300 dark:hover:bg-orange-700'
+                                          : isModifiedExisting
+                                          ? 'bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200 border-yellow-400 dark:border-yellow-600 hover:bg-yellow-300 dark:hover:bg-yellow-700'
                                           : 'bg-gray-100 dark:bg-gray-700 text-gray-500 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
                                       }`}
                                       data-testid={`modified-bit-${mapping.plc_reg_add}-${bitIndex}`}
+                                      title={isBoolExisting ? 'Bit already in use by boolean channel' : isModifiedExisting ? 'Bit selected in another modified channel' : ''}
                                     >
                                       {bitIndex}
                                     </button>
@@ -538,6 +632,8 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
                                 {Array.from({ length: 8 }, (_, i) => {
                                   const bitIndex = 7 - i;
                                   const isSelected = modifiedBits.has(bitIndex);
+                                  const isBoolExisting = existingBitData.boolBits.includes(bitIndex);
+                                  const isModifiedExisting = existingBitData.modifiedBits.includes(bitIndex);
                                   return (
                                     <button
                                       key={bitIndex}
@@ -545,9 +641,14 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
                                       className={`w-6 h-6 text-xs font-mono border rounded ${
                                         isSelected 
                                           ? 'bg-blue-500 text-white border-blue-600' 
+                                          : isBoolExisting
+                                          ? 'bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200 border-orange-400 dark:border-orange-600 hover:bg-orange-300 dark:hover:bg-orange-700'
+                                          : isModifiedExisting
+                                          ? 'bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200 border-yellow-400 dark:border-yellow-600 hover:bg-yellow-300 dark:hover:bg-yellow-700'
                                           : 'bg-gray-100 dark:bg-gray-700 text-gray-500 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
                                       }`}
                                       data-testid={`modified-bit-${mapping.plc_reg_add}-${bitIndex}`}
+                                      title={isBoolExisting ? 'Bit already in use by boolean channel' : isModifiedExisting ? 'Bit selected in another modified channel' : ''}
                                     >
                                       {bitIndex}
                                     </button>
