@@ -20,6 +20,7 @@ export function FileUploadCard({ onFileProcessed }: FileUploadCardProps) {
   const [progress, setProgress] = useState(0);
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState<string>("");
 
   const processFile = (file: File) => {
     if (!file.name.match(/\.(csv|txt)$/i)) {
@@ -35,6 +36,7 @@ export function FileUploadCard({ onFileProcessed }: FileUploadCardProps) {
     setProgress(0);
     setParseResult(null);
     setShowPreview(false);
+    setUploadedFileName(file.name);
 
     // Simulate progress
     const progressInterval = setInterval(() => {
@@ -133,6 +135,7 @@ export function FileUploadCard({ onFileProcessed }: FileUploadCardProps) {
     setParseResult(null);
     setShowPreview(false);
     setProgress(0);
+    setUploadedFileName("");
   };
 
   return (
@@ -144,70 +147,75 @@ export function FileUploadCard({ onFileProcessed }: FileUploadCardProps) {
         </CardTitle>
       </CardHeader>
       <CardContent>
+        <div className="mb-4">
+          <p className="text-muted-foreground mb-2" data-testid="text-upload-description">
+            {t('uploadDescription')}
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+            <div className="bg-muted p-2 rounded text-center">
+              <span className="font-medium" data-testid="text-col1">{t('col1')}</span>
+            </div>
+            <div className="bg-muted p-2 rounded text-center">
+              <span className="font-medium" data-testid="text-col2">{t('col2')}</span>
+            </div>
+            <div className="bg-muted p-2 rounded text-center">
+              <span className="font-medium" data-testid="text-col3">{t('col3')}</span>
+            </div>
+            <div className="bg-muted p-2 rounded text-center">
+              <span className="font-medium" data-testid="text-col4">{t('col4')}</span>
+            </div>
+          </div>
+        </div>
+        
         {!parseResult && (
-          <>
-            <div className="mb-4">
-              <p className="text-muted-foreground mb-2" data-testid="text-upload-description">
-                {t('uploadDescription')}
-              </p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-                <div className="bg-muted p-2 rounded text-center">
-                  <span className="font-medium" data-testid="text-col1">{t('col1')}</span>
-                </div>
-                <div className="bg-muted p-2 rounded text-center">
-                  <span className="font-medium" data-testid="text-col2">{t('col2')}</span>
-                </div>
-                <div className="bg-muted p-2 rounded text-center">
-                  <span className="font-medium" data-testid="text-col3">{t('col3')}</span>
-                </div>
-                <div className="bg-muted p-2 rounded text-center">
-                  <span className="font-medium" data-testid="text-col4">{t('col4')}</span>
-                </div>
-              </div>
+          <div 
+            className="upload-zone rounded-lg p-8 text-center cursor-pointer"
+            onClick={() => document.getElementById('fileInput')?.click()}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            data-testid="zone-file-upload"
+          >
+            <CloudUpload className="w-16 h-16 text-muted-foreground mb-4 mx-auto" />
+            <p className="text-lg font-medium text-foreground mb-2" data-testid="text-upload-main">
+              {t('uploadText')}
+            </p>
+            <p className="text-muted-foreground" data-testid="text-upload-sub">
+              {t('uploadSubtext')}
+            </p>
+            <input 
+              type="file" 
+              id="fileInput" 
+              className="hidden" 
+              accept=".csv,.txt"
+              onChange={handleFileSelect}
+              data-testid="input-file"
+            />
+          </div>
+        )}
+        
+        {isUploading && (
+          <div className="mt-4" data-testid="container-progress">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm font-medium text-foreground" data-testid="text-progress">
+                {t('progressText')}
+              </span>
+              <span className="text-sm text-muted-foreground" data-testid="text-progress-percent">
+                {progress}%
+              </span>
             </div>
-            
-            <div 
-              className="upload-zone rounded-lg p-8 text-center cursor-pointer"
-              onClick={() => document.getElementById('fileInput')?.click()}
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              data-testid="zone-file-upload"
-            >
-              <CloudUpload className="w-16 h-16 text-muted-foreground mb-4 mx-auto" />
-              <p className="text-lg font-medium text-foreground mb-2" data-testid="text-upload-main">
-                {t('uploadText')}
-              </p>
-              <p className="text-muted-foreground" data-testid="text-upload-sub">
-                {t('uploadSubtext')}
-              </p>
-              <input 
-                type="file" 
-                id="fileInput" 
-                className="hidden" 
-                accept=".csv,.txt"
-                onChange={handleFileSelect}
-                data-testid="input-file"
-              />
-            </div>
-            
-            {isUploading && (
-              <div className="mt-4" data-testid="container-progress">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-foreground" data-testid="text-progress">
-                    {t('progressText')}
-                  </span>
-                  <span className="text-sm text-muted-foreground" data-testid="text-progress-percent">
-                    {progress}%
-                  </span>
-                </div>
-                <Progress value={progress} className="w-full" data-testid="progress-upload" />
-              </div>
-            )}
-          </>
+            <Progress value={progress} className="w-full" data-testid="progress-upload" />
+          </div>
         )}
 
         {parseResult && (
           <div className="space-y-4" data-testid="container-preview">
+            {/* Filename Display */}
+            <div className="bg-primary/10 p-3 rounded-lg border">
+              <p className="text-sm font-medium" data-testid="text-uploaded-filename">
+                {t('uploadedFile')}: <span className="font-mono">{uploadedFileName}</span>
+              </p>
+            </div>
+            
             {/* Statistics */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center p-4 bg-muted/50 rounded-lg">
@@ -245,7 +253,7 @@ export function FileUploadCard({ onFileProcessed }: FileUploadCardProps) {
               <div className="border rounded-lg p-4 max-h-96 overflow-y-auto bg-muted/25" data-testid="container-preview-data">
                 <h4 className="font-semibold mb-3">{t('previewTitle')}</h4>
                 <div className="space-y-2">
-                  {parseResult.addressMappings.slice(0, 10).map((mapping, index) => (
+                  {parseResult.addressMappings.map((mapping, index) => (
                     <div key={index} className="text-sm bg-background p-2 rounded border" data-testid={`preview-mapping-${index}`}>
                       <div className="grid grid-cols-3 gap-2">
                         <span className="font-mono">{mapping.plc_reg_add}</span>
@@ -254,11 +262,6 @@ export function FileUploadCard({ onFileProcessed }: FileUploadCardProps) {
                       </div>
                     </div>
                   ))}
-                  {parseResult.addressMappings.length > 10 && (
-                    <div className="text-center text-sm text-muted-foreground">
-                      ... and {parseResult.addressMappings.length - 10} more mappings
-                    </div>
-                  )}
                 </div>
               </div>
             )}
