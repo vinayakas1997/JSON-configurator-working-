@@ -127,6 +127,9 @@ export function generateOpcuaName(
   } else if (dataType === 'CHANNEL' || dataType === 'channel') {
     // Case c: For channel
     return `P${plcNumber}_${memoryPrefix}_${regAddress}_C`;
+  } else if (dataType === 'MODIFIED CHANNEL' || dataType === 'modified channel') {
+    // Case c2: For modified channel (boolean channel equivalent)
+    return `P${plcNumber}_${memoryPrefix}_${regAddress}_BC`;
   } else {
     // Case d: Other data types
     const suffixValue = DATA_TYPE_DICTIONARY[dataType.toUpperCase()] || 1;

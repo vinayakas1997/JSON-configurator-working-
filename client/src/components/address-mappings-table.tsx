@@ -525,8 +525,10 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
             const baseAddr = plcAddress.split('.')[0];
             let newOpcuaName: string;
             
-            if (dataType === 'CHANNEL' || dataType === 'modified channel') {
+            if (dataType === 'CHANNEL') {
               newOpcuaName = generateOpcuaName(baseAddr, 'CHANNEL', undefined, false, plcNumber);
+            } else if (dataType === 'modified channel') {
+              newOpcuaName = generateOpcuaName(baseAddr, 'MODIFIED CHANNEL', undefined, false, plcNumber);
             } else if (dataType === 'BOOL' && plcAddress.includes('.')) {
               const bitPosition = plcAddress.split('.')[1];
               newOpcuaName = generateOpcuaName(baseAddr, 'BOOL', bitPosition, false, plcNumber);

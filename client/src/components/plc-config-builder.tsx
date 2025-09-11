@@ -26,7 +26,7 @@ export function PlcConfigBuilder() {
   const [showJsonModal, setShowJsonModal] = useState(false);
   
   // Configuration state
-  const [configFileName, setConfigFileName] = useState("plc_config.json");
+  const [configFileName, setConfigFileName] = useState("plc_config");
   const [configDescription, setConfigDescription] = useState("");
   const [plcNo, setPlcNo] = useState<number | string>(1);
   const [plcName, setPlcName] = useState("PLC1");
@@ -161,7 +161,7 @@ export function PlcConfigBuilder() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = configFileName;
+    a.download = `${configFileName}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -169,7 +169,7 @@ export function PlcConfigBuilder() {
     
     toast({
       title: "JSON Exported",
-      description: `Configuration exported as ${configFileName}`,
+      description: `Configuration exported as ${configFileName}.json`,
     });
   };
 
@@ -310,13 +310,18 @@ export function PlcConfigBuilder() {
                 <Label htmlFor="configFileName" data-testid="label-file-name">
                   {t('fileNameLabel')}
                 </Label>
-                <Input
-                  id="configFileName"
-                  value={configFileName}
-                  onChange={(e) => setConfigFileName(e.target.value)}
-                  className="mt-1"
-                  data-testid="input-file-name"
-                />
+                <div className="flex items-center mt-1">
+                  <Input
+                    id="configFileName"
+                    value={configFileName}
+                    onChange={(e) => setConfigFileName(e.target.value)}
+                    className="rounded-r-none"
+                    data-testid="input-file-name"
+                  />
+                  <span className="inline-flex items-center px-3 py-2 border border-l-0 border-input bg-muted text-muted-foreground text-sm rounded-r-md">
+                    .json
+                  </span>
+                </div>
               </div>
               <div>
                 <Label htmlFor="configDescription" data-testid="label-description">
