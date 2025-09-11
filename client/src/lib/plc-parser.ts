@@ -32,6 +32,7 @@ export interface ParseResult {
     description: string;
     reason: string;
   }>;
+  modifiedChannelAddresses: string[]; // Original BOOL addresses that were combined into CHANNEL types
 }
 
 /**
@@ -237,6 +238,7 @@ export function parseCSVData(csvData: string[][], plcNumber: number = 1): ParseR
   // Create address mappings for grouped boolean addresses
   const addressMappings: AddressMapping[] = [];
   let booleanChannelCount = 0;
+  const modifiedChannelAddresses: string[] = [];
 
   // Process grouped boolean addresses
   for (const [baseAddress, bits] of Array.from(booleanGroups.entries())) {
@@ -244,6 +246,11 @@ export function parseCSVData(csvData: string[][], plcNumber: number = 1): ParseR
       // Only group if there are multiple bits - create a boolean channel
       booleanChannelCount++;
       const opcuaName = generateOpcuaName(baseAddress, 'BOOL', undefined, true, plcNumber);
+      
+      // Track original addresses that were combined into this boolean channel
+      for (const bit of bits) {
+        modifiedChannelAddresses.push(bit.originalAddress);
+      }
       
       addressMappings.push({
         plc_reg_add: baseAddress,
@@ -280,6 +287,7 @@ export function parseCSVData(csvData: string[][], plcNumber: number = 1): ParseR
       skippedRecords: skippedAddresses.length,
       booleanChannels: booleanChannelCount
     },
-    skippedAddresses
+    skippedAddresses,
+    modifiedChannelAddresses
   };
 }
