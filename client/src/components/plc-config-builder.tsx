@@ -416,25 +416,52 @@ export function PlcConfigBuilder() {
                           <div className="grid grid-cols-3 md:grid-cols-7 gap-3">
                             {standardMemoryAreas.map(area => {
                               const count = memoryAreaCounts.get(area) || 0;
+                              const addresses = memoryAreaAddresses.get(area) || [];
                               return (
-                                <div key={area} className="flex items-center justify-between p-3 rounded border bg-muted">
-                                  <div className="flex items-center space-x-2">
-                                    <input
-                                      type="checkbox"
-                                      id={`memory-${area}`}
-                                      checked={selectedMemoryAreas.has(area)}
-                                      onChange={() => toggleMemoryArea(area)}
-                                      className="w-4 h-4"
-                                      data-testid={`checkbox-memory-${area}`}
-                                    />
-                                    <label htmlFor={`memory-${area}`} className="text-sm font-medium cursor-pointer">
-                                      {area}
-                                    </label>
+                                <Collapsible key={area}>
+                                  <div className="flex flex-col">
+                                    <div className="flex items-center justify-between p-3 rounded border bg-muted">
+                                      <div className="flex items-center space-x-2">
+                                        <input
+                                          type="checkbox"
+                                          id={`memory-${area}`}
+                                          checked={selectedMemoryAreas.has(area)}
+                                          onChange={() => toggleMemoryArea(area)}
+                                          className="w-4 h-4"
+                                          data-testid={`checkbox-memory-${area}`}
+                                        />
+                                        <label htmlFor={`memory-${area}`} className="text-sm font-medium cursor-pointer">
+                                          {area}
+                                        </label>
+                                      </div>
+                                      <div className="flex items-center space-x-1">
+                                        <span className="text-sm font-bold text-primary">{count}</span>
+                                        {count > 0 && (
+                                          <CollapsibleTrigger asChild>
+                                            <button className="p-1 hover:bg-background rounded" data-testid={`expand-memory-${area}`}>
+                                              <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                                            </button>
+                                          </CollapsibleTrigger>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {count > 0 && (
+                                      <CollapsibleContent>
+                                        <div className="mt-1 p-2 bg-muted/50 rounded border-l-2 border-primary/30">
+                                          <div className="max-h-32 overflow-y-auto">
+                                            <div className="space-y-1">
+                                              {addresses.map((address, index) => (
+                                                <div key={index} className="text-xs font-mono bg-white dark:bg-gray-800 px-2 py-1 rounded border">
+                                                  {address}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </CollapsibleContent>
+                                    )}
                                   </div>
-                                  <span className="text-sm font-bold text-primary">
-                                    {count}
-                                  </span>
-                                </div>
+                                </Collapsible>
                               );
                             })}
                           </div>
