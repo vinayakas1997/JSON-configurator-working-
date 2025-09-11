@@ -66,7 +66,7 @@ export function PlcConfigBuilder() {
 
   const handleFileProcessed = (mappings: AddressMapping[]) => {
     setAddressMappings(mappings);
-    setShowUploadCard(false);
+    // Keep the upload card visible after importing
   };
 
   const handleExportJson = () => {
