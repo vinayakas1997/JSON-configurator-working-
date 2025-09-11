@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Menu, Globe, ChevronDown, BarChart, Table, Eye, Download, List } from "lucide-react";
+import { Menu, Globe, ChevronDown, BarChart, Table, Eye, Download, List, Save } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -12,9 +12,11 @@ import { Sidebar } from "./sidebar";
 import { FileUploadCard } from "./file-upload-card";
 import { AddressMappingsTable } from "./address-mappings-table";
 import { JsonPreviewModal } from "./json-preview-modal";
-import type { AddressMapping, ConfigFile } from "@shared/schema";
+import type { AddressMapping, ConfigFile, PlcConfiguration } from "@shared/schema";
 import type { ParseResult } from "@/lib/plc-parser";
 import { generateOpcuaName } from "@/lib/plc-parser";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export function PlcConfigBuilder() {
   const { language, setLanguage, t } = useLanguage();
@@ -49,6 +51,7 @@ export function PlcConfigBuilder() {
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
 
   const [currentDate, setCurrentDate] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const now = new Date();
@@ -240,6 +243,116 @@ export function PlcConfigBuilder() {
     setSidebarOpen(!sidebarOpen);
   };
 
+  // Save session handler
+  const handleSaveSession = async () => {
+    const sessionName = prompt("Enter a name for this session:");
+    if (!sessionName || sessionName.trim() === "") return;
+    
+    const sessionDescription = prompt("Enter a description (optional):") || "";
+    
+    try {
+      setIsSaving(true);
+      
+      // Create the configuration data
+      const configData: ConfigFile = {
+        plcs: [{
+          plc_name: plcName,
+          plc_ip: plcIp,
+          opcua_url: opcuaUrl,
+          address_mappings: addressMappings
+        }]
+      };
+
+      const response = await fetch('/api/plc-configurations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: sessionName.trim(),
+          description: sessionDescription.trim() || null,
+          config_data: configData
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save session');
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['/api/plc-configurations'] });
+      
+      toast({
+        title: "Session Saved",
+        description: `Session "${sessionName}" has been saved successfully.`,
+      });
+    } catch (error) {
+      console.error('Failed to save session:', error);
+      toast({
+        title: "Save Failed",
+        description: "Failed to save the session. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Load session handler
+  const handleLoadSession = async (sessionId: string) => {
+    try {
+      const response = await fetch(`/api/plc-configurations/${sessionId}`);
+      if (!response.ok) throw new Error('Failed to load session');
+      
+      const session: PlcConfiguration = await response.json();
+      const configData = session.config_data as ConfigFile;
+      
+      if (configData.plcs && configData.plcs.length > 0) {
+        const plcConfig = configData.plcs[0];
+        
+        // Restore configuration state
+        setPlcName(plcConfig.plc_name);
+        setPlcIp(plcConfig.plc_ip);
+        setOpcuaUrl(plcConfig.opcua_url);
+        setAddressMappings(plcConfig.address_mappings);
+        setConfigFileName(session.name);
+        setConfigDescription(session.description || "");
+        
+        toast({
+          title: "Session Loaded",
+          description: `Session "${session.name}" has been loaded successfully.`,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load session:', error);
+      toast({
+        title: "Load Failed",
+        description: "Failed to load the session. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // New session handler
+  const handleNewSession = () => {
+    if (window.confirm("Create a new session? This will clear your current configuration.")) {
+      setPlcName("PLC1");
+      setPlcIp("192.168.2.2");
+      setOpcuaUrl("opc.tcp://192.168.1.20:4840");
+      setAddressMappings([
+        { plc_reg_add: "2.01", data_type: "BOOL", opcua_reg_add: "BOOL_VAR01" },
+        { plc_reg_add: "C0001", data_type: "WORD", opcua_reg_add: "INT_VAR01" }
+      ]);
+      setConfigFileName("plc_config");
+      setConfigDescription("");
+      setPlcNo(1);
+      
+      toast({
+        title: "New Session",
+        description: "New session created. You can now configure your PLC settings.",
+      });
+    }
+  };
+
   // Analysis functions for overview
   const analyzeAddressMappings = () => {
     const memoryAreaCounts = new Map<string, number>();
@@ -317,6 +430,16 @@ export function PlcConfigBuilder() {
               >
                 <Menu className="w-5 h-5" />
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSaveSession}
+                disabled={isSaving}
+                className="p-2"
+                data-testid="button-save-session"
+              >
+                <Save className="w-4 h-4" />
+              </Button>
               <div className="hidden md:flex items-center space-x-2">
                 <span className="text-sm font-medium text-muted-foreground" data-testid="text-session">
                   {t('sessionText')} {plcName}
@@ -353,7 +476,14 @@ export function PlcConfigBuilder() {
       </nav>
 
       {/* Sidebar */}
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} onToggle={toggleSidebar} plcName={plcName} />
+      <Sidebar 
+        isOpen={sidebarOpen} 
+        onClose={() => setSidebarOpen(false)} 
+        onToggle={toggleSidebar} 
+        plcName={plcName}
+        onLoadSession={handleLoadSession}
+        onNewSession={handleNewSession}
+      />
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
