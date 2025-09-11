@@ -110,8 +110,8 @@ export function PlcConfigBuilder() {
     const datatypeAddresses = new Map<string, string[]>();
     const otherDatatypes = new Set<string>();
     
-    // Get modified channel addresses from parse result
-    const modifiedChannelAddresses = parseResult?.modifiedChannelAddresses || [];
+    // Get boolean channel addresses from parse result
+    const booleanChannelAddresses = parseResult?.booleanChannelAddresses || [];
     
     const standardDatatypes = new Set(['int16', 'int32', 'float32', 'bool', 'string', 'CHANNEL', 'BOOL', 'WORD', 'UDINT', 'DWORD', 'INT', 'REAL', 'LREAL']);
     
@@ -149,7 +149,7 @@ export function PlcConfigBuilder() {
       }
     });
     
-    return { memoryAreaCounts, memoryAreaAddresses, datatypeCounts, datatypeAddresses, otherDatatypes, modifiedChannelAddresses };
+    return { memoryAreaCounts, memoryAreaAddresses, datatypeCounts, datatypeAddresses, otherDatatypes, booleanChannelAddresses };
   };
 
   const toggleMemoryArea = (area: string) => {
@@ -375,7 +375,7 @@ export function PlcConfigBuilder() {
               <CollapsibleContent>
                 <div className="p-4 border-t border-border" data-testid="content-overview">
                   {(() => {
-                    const { memoryAreaCounts, memoryAreaAddresses, datatypeCounts, datatypeAddresses, otherDatatypes, modifiedChannelAddresses } = analyzeAddressMappings();
+                    const { memoryAreaCounts, memoryAreaAddresses, datatypeCounts, datatypeAddresses, otherDatatypes, booleanChannelAddresses } = analyzeAddressMappings();
                     const standardMemoryAreas = ['I/O', 'A', 'C', 'D', 'E', 'T', 'H'];
                     
                     return (
@@ -518,34 +518,29 @@ export function PlcConfigBuilder() {
                                 </Collapsible>
                               );
                             })}
-                          </div>
-                        </div>
-
-                        {/* Modified CHANNEL Section */}
-                        {modifiedChannelAddresses.length > 0 && (
-                          <div className="space-y-3" data-testid="section-modified-channel">
-                            <h3 className="text-lg font-semibold text-foreground">{t('modifiedChannel')}</h3>
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                              <Collapsible>
+                            
+                            {/* BOOL CHANNEL datatype with orange color */}
+                            {booleanChannelAddresses.length > 0 && (
+                              <Collapsible key="BOOL CHANNEL">
                                 <div className="flex flex-col">
                                   <div className="bg-muted p-3 rounded-lg">
                                     <div className="flex items-center justify-between">
                                       <div className="text-center flex-1">
-                                        <div className="text-lg font-bold text-primary">{modifiedChannelAddresses.length}</div>
-                                        <div className="text-xs text-muted-foreground uppercase">modified CHANNEL</div>
+                                        <div className="text-lg font-bold text-primary">{booleanChannelAddresses.length}</div>
+                                        <div className="text-xs text-orange-600 dark:text-orange-400 uppercase font-medium">{t('boolChannel')}</div>
                                       </div>
                                       <CollapsibleTrigger asChild>
-                                        <button className="p-1 hover:bg-background rounded ml-2" data-testid="expand-modified-channel">
+                                        <button className="p-1 hover:bg-background rounded ml-2" data-testid="expand-datatype-bool-channel">
                                           <ChevronDown className="w-3 h-3 text-muted-foreground" />
                                         </button>
                                       </CollapsibleTrigger>
                                     </div>
                                   </div>
                                   <CollapsibleContent>
-                                    <div className="mt-1 p-2 bg-muted/50 rounded border-l-2 border-primary/30">
+                                    <div className="mt-1 p-2 bg-muted/50 rounded border-l-2 border-orange-400/30">
                                       <div className="max-h-32 overflow-y-auto">
                                         <div className="space-y-1">
-                                          {modifiedChannelAddresses.map((address, index) => (
+                                          {booleanChannelAddresses.map((address: string, index: number) => (
                                             <div key={index} className="text-xs font-mono bg-white dark:bg-gray-800 px-2 py-1 rounded border">
                                               {address}
                                             </div>
@@ -556,9 +551,9 @@ export function PlcConfigBuilder() {
                                   </CollapsibleContent>
                                 </div>
                               </Collapsible>
-                            </div>
+                            )}
                           </div>
-                        )}
+                        </div>
 
                         {/* Other Datatypes */}
                         {otherDatatypes.size > 0 && (
