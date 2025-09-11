@@ -85,15 +85,15 @@ export function normalizeBooleanAddress(address: string): string {
 /**
  * Extract the memory area prefix from an address.
  * Returns the first letter of the address (e.g., 'A' from 'A200', 'D' from 'D1000')
- * For numeric addresses, returns 'A' as default.
+ * For numeric addresses, returns 'IO' as default.
  */
 export function getMemoryAreaPrefix(address: string): string {
   if (!address) {
-    return 'A';
+    return 'IO';
   }
   
   if (/^\d/.test(address)) {
-    return 'A'; // Default to 'A' for numeric addresses
+    return 'IO'; // Use 'IO' for numeric addresses
   }
   
   return address[0].toUpperCase();
@@ -260,7 +260,7 @@ export function parseCSVData(csvData: string[][], plcNumber: number = 1): ParseR
       
       addressMappings.push({
         plc_reg_add: baseAddress,
-        data_type: 'BOOL', // Keep original BOOL type for boolean channel
+        data_type: 'CHANNEL', // Use CHANNEL for grouped boolean channels
         opcua_reg_add: opcuaName
       });
     } else {

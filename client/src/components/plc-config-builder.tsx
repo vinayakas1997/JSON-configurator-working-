@@ -13,6 +13,7 @@ import { AddressMappingsTable } from "./address-mappings-table";
 import { JsonPreviewModal } from "./json-preview-modal";
 import type { AddressMapping, ConfigFile } from "@shared/schema";
 import type { ParseResult } from "@/lib/plc-parser";
+import { generateOpcuaName } from "@/lib/plc-parser";
 
 export function PlcConfigBuilder() {
   const { language, setLanguage, t } = useLanguage();
@@ -55,6 +56,38 @@ export function PlcConfigBuilder() {
     };
     setCurrentDate(now.toLocaleDateString('en-US', options));
   }, []);
+
+  // Regenerate OPC UA names when PLC number changes
+  useEffect(() => {
+    const plcNumber = typeof plcNo === 'number' ? plcNo : parseInt(plcNo.toString()) || 1;
+    const updatedMappings = addressMappings.map(mapping => {
+      const baseAddr = mapping.plc_reg_add.split('.')[0];
+      let newOpcuaName: string;
+      
+      // Handle different mapping types correctly
+      if (mapping.opcua_reg_add.endsWith('_BC')) {
+        // This is a grouped boolean channel - use BOOL with isBooleanChannel=true
+        newOpcuaName = generateOpcuaName(baseAddr, 'BOOL', undefined, true, plcNumber);
+      } else if (mapping.data_type === 'CHANNEL') {
+        // This is a true CHANNEL mapping - use CHANNEL
+        newOpcuaName = generateOpcuaName(baseAddr, 'CHANNEL', undefined, false, plcNumber);
+      } else if (mapping.data_type === 'BOOL' && mapping.plc_reg_add.includes('.')) {
+        // Individual BOOL with bit position
+        const bitPosition = mapping.plc_reg_add.split('.')[1];
+        newOpcuaName = generateOpcuaName(baseAddr, 'BOOL', bitPosition, false, plcNumber);
+      } else {
+        // Other data types
+        newOpcuaName = generateOpcuaName(baseAddr, mapping.data_type, undefined, false, plcNumber);
+      }
+      
+      return {
+        ...mapping,
+        opcua_reg_add: newOpcuaName
+      };
+    });
+    
+    setAddressMappings(updatedMappings);
+  }, [plcNo]); // Only depend on plcNo to avoid infinite loops
 
   const generateJson = (): string => {
     const config: ConfigFile = {
