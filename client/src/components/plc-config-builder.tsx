@@ -26,7 +26,7 @@ export function PlcConfigBuilder() {
   // Configuration state
   const [configFileName, setConfigFileName] = useState("plc_config.json");
   const [configDescription, setConfigDescription] = useState("");
-  const [plcNo, setPlcNo] = useState(1);
+  const [plcNo, setPlcNo] = useState<number | string>(1);
   const [plcName, setPlcName] = useState("PLC1");
   const [plcIp, setPlcIp] = useState("192.168.2.2");
   const [opcuaUrl, setOpcuaUrl] = useState("opc.tcp://192.168.1.20:4840");
@@ -253,9 +253,24 @@ export function PlcConfigBuilder() {
                   type="number"
                   min="1"
                   value={plcNo}
-                  onChange={(e) => setPlcNo(parseInt(e.target.value) || 1)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === '') {
+                      setPlcNo('');
+                    } else {
+                      const numValue = parseInt(value);
+                      if (!isNaN(numValue) && numValue > 0) {
+                        setPlcNo(numValue);
+                      }
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value === '') {
+                      setPlcNo(1);
+                    }
+                  }}
                   className={`mt-1 transition-all duration-200 ${
-                    plcNo === 1 ? 'text-muted-foreground font-light' : 'text-foreground font-semibold'
+                    plcNo === 1 || plcNo === '1' ? 'text-muted-foreground font-light' : 'text-foreground font-semibold'
                   }`}
                   data-testid="input-plc-no"
                 />
