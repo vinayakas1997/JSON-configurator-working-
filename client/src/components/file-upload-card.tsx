@@ -8,6 +8,8 @@ import { useToast } from "@/hooks/use-toast";
 import Papa from "papaparse";
 import type { AddressMapping } from "@shared/schema";
 import { parseCSVData, type ParseResult } from "@/lib/plc-parser";
+// @ts-ignore - encoding-japanese doesn't have TypeScript definitions
+import Encoding from "encoding-japanese";
 
 interface FileUploadCardProps {
   onFileProcessed: (mappings: AddressMapping[]) => void;
@@ -47,61 +49,126 @@ export function FileUploadCard({ onFileProcessed }: FileUploadCardProps) {
       });
     }, 100);
 
-    Papa.parse(file, {
-      header: false,
-      skipEmptyLines: true,
-      complete: (results) => {
-        clearInterval(progressInterval);
-        setProgress(100);
+    // Read file as ArrayBuffer for proper encoding handling
+    const reader = new FileReader();
+    reader.onload = function(event) {
+      try {
+        const arrayBuffer = event.target?.result as ArrayBuffer;
+        const uint8Array = new Uint8Array(arrayBuffer);
+        
+        // Try to detect encoding - similar to Python's encoding detection
+        let decodedString = '';
+        const encodingsToTry = ['UTF8', 'SJIS', 'EUCJP', 'JIS'];
+        
+        for (const encoding of encodingsToTry) {
+          try {
+            const unicodeArray = Encoding.convert(uint8Array, {
+              to: 'UNICODE',
+              from: encoding
+            });
+            
+            decodedString = Encoding.codeToString(unicodeArray);
+            
+            // Check if the decoded string contains readable content
+            // If it has proper CSV structure, we found the right encoding
+            if (decodedString && !decodedString.includes('\ufffd') && decodedString.includes(',')) {
+              console.log(`Successfully decoded with encoding: ${encoding}`);
+              break;
+            }
+          } catch (e: unknown) {
+            // Continue to next encoding
+            continue;
+          }
+        }
+        
+        // If no encoding worked, fall back to UTF-8
+        if (!decodedString || decodedString.includes('\ufffd')) {
+          const decoder = new TextDecoder('utf-8');
+          decodedString = decoder.decode(uint8Array);
+        }
 
-        try {
-          const data = results.data as string[][];
-          
-          // Store the raw CSV data
-          setRawCSVData(data);
-          
-          // Skip header row if present
-          const startIndex = data[0]?.some(cell => 
-            cell?.toLowerCase().includes('register') || 
-            cell?.toLowerCase().includes('type') ||
-            cell?.toLowerCase().includes('address')
-          ) ? 1 : 0;
+        // Parse the decoded string with PapaParse
+        Papa.parse(decodedString, {
+          header: false,
+          skipEmptyLines: true,
+          complete: (results) => {
+            clearInterval(progressInterval);
+            setProgress(100);
 
-          // Use the new PLC parser
-          const result = parseCSVData(data.slice(startIndex), 1);
-          setParseResult(result);
-          setShowPreview(true);
+            try {
+              const data = results.data as string[][];
+              
+              // Store the raw CSV data
+              setRawCSVData(data);
+              
+              // Skip header row if present
+              const startIndex = data[0]?.some(cell => 
+                cell?.toLowerCase().includes('register') || 
+                cell?.toLowerCase().includes('type') ||
+                cell?.toLowerCase().includes('address')
+              ) ? 1 : 0;
 
-          setTimeout(() => {
+              // Use the new PLC parser
+              const result = parseCSVData(data.slice(startIndex), 1);
+              setParseResult(result);
+              setShowPreview(true);
+
+              setTimeout(() => {
+                setIsUploading(false);
+                toast({
+                  title: t('fileUploadSuccess'),
+                  description: `${result.stats.validRecords} mappings processed, ${result.stats.booleanChannels} boolean channels created`,
+                });
+              }, 500);
+
+            } catch (error) {
+              setProgress(0);
+              setIsUploading(false);
+              setParseResult(null);
+              toast({
+                title: t('fileUploadError'),
+                description: error instanceof Error ? error.message : 'Unknown error occurred',
+                variant: "destructive",
+              });
+            }
+          },
+          error: (error: { message: string }) => {
+            clearInterval(progressInterval);
+            setProgress(0);
             setIsUploading(false);
             toast({
-              title: t('fileUploadSuccess'),
-              description: `${result.stats.validRecords} mappings processed, ${result.stats.booleanChannels} boolean channels created`,
+              title: t('fileUploadError'),
+              description: error.message,
+              variant: "destructive",
             });
-          }, 500);
+          }
+        });
 
-        } catch (error) {
-          setProgress(0);
-          setIsUploading(false);
-          setParseResult(null);
-          toast({
-            title: t('fileUploadError'),
-            description: error instanceof Error ? error.message : 'Unknown error occurred',
-            variant: "destructive",
-          });
-        }
-      },
-      error: (error) => {
+      } catch (error) {
         clearInterval(progressInterval);
         setProgress(0);
         setIsUploading(false);
         toast({
           title: t('fileUploadError'),
-          description: error.message,
+          description: error instanceof Error ? error.message : 'File encoding detection failed',
           variant: "destructive",
         });
       }
-    });
+    };
+
+    reader.onerror = function() {
+      clearInterval(progressInterval);
+      setProgress(0);
+      setIsUploading(false);
+      toast({
+        title: t('fileUploadError'),
+        description: 'Failed to read file',
+        variant: "destructive",
+      });
+    };
+
+    // Read the file as ArrayBuffer instead of text
+    reader.readAsArrayBuffer(file);
   };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
