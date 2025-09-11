@@ -109,7 +109,7 @@ export function PlcConfigBuilder() {
     const datatypeCounts = new Map<string, number>();
     const otherDatatypes = new Set<string>();
     
-    const standardDatatypes = new Set(['int16', 'int32', 'float32', 'bool', 'string']);
+    const standardDatatypes = new Set(['int16', 'int32', 'float32', 'bool', 'string', 'CHANNEL', 'BOOL', 'WORD', 'UDINT', 'DWORD', 'INT', 'REAL', 'LREAL']);
     
     addressMappings.forEach(mapping => {
       // Extract memory area from register address

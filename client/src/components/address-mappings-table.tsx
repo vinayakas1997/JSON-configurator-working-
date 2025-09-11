@@ -17,7 +17,7 @@ export function AddressMappingsTable({ mappings, onMappingsChange }: AddressMapp
   const addMapping = () => {
     const newMapping: AddressMapping = {
       plc_reg_add: "",
-      data_type: "int16",
+      data_type: "WORD",
       opcua_reg_add: ""
     };
     onMappingsChange([...mappings, newMapping]);
@@ -89,6 +89,14 @@ export function AddressMappingsTable({ mappings, onMappingsChange }: AddressMapp
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="CHANNEL">CHANNEL</SelectItem>
+                      <SelectItem value="BOOL">BOOL</SelectItem>
+                      <SelectItem value="WORD">WORD</SelectItem>
+                      <SelectItem value="UDINT">UDINT</SelectItem>
+                      <SelectItem value="DWORD">DWORD</SelectItem>
+                      <SelectItem value="INT">INT</SelectItem>
+                      <SelectItem value="REAL">REAL</SelectItem>
+                      <SelectItem value="LREAL">LREAL</SelectItem>
                       <SelectItem value="int16">int16</SelectItem>
                       <SelectItem value="int32">int32</SelectItem>
                       <SelectItem value="float32">float32</SelectItem>

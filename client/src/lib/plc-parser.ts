@@ -219,25 +219,16 @@ export function parseCSVData(csvData: string[][], plcNumber: number = 1): ParseR
       
       otherMappings.push({
         plc_reg_add: normalizedAddress,
-        data_type: 'string', // Map CHANNEL to string
+        data_type: 'CHANNEL', // Keep original data type
         opcua_reg_add: opcuaName
       });
     } else {
-      // Handle other data types
-      const dataTypeMap: { [key: string]: AddressMapping['data_type'] } = {
-        'WORD': 'int16',
-        'UDINT': 'int32',
-        'DWORD': 'int32',
-        'INT': 'int16',
-        'REAL': 'float32',
-        'LREAL': 'float32'
-      };
-      
+      // Handle other data types - keep original data type names
       const opcuaName = generateOpcuaName(normalizedAddress, item.data_type, undefined, false, plcNumber);
       
       otherMappings.push({
         plc_reg_add: normalizedAddress,
-        data_type: dataTypeMap[item.data_type] || 'int16',
+        data_type: item.data_type as AddressMapping['data_type'], // Keep original data type
         opcua_reg_add: opcuaName
       });
     }
@@ -256,7 +247,7 @@ export function parseCSVData(csvData: string[][], plcNumber: number = 1): ParseR
       
       addressMappings.push({
         plc_reg_add: baseAddress,
-        data_type: 'string', // Boolean channel as string
+        data_type: 'BOOL', // Keep original BOOL type for boolean channel
         opcua_reg_add: opcuaName
       });
     } else {
@@ -272,7 +263,7 @@ export function parseCSVData(csvData: string[][], plcNumber: number = 1): ParseR
       
       addressMappings.push({
         plc_reg_add: bit.normalizedAddress,
-        data_type: 'bool',
+        data_type: 'BOOL', // Keep original BOOL type
         opcua_reg_add: opcuaName
       });
     }
