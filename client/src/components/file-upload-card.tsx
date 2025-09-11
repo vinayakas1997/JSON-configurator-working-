@@ -296,7 +296,19 @@ export function FileUploadCard({ onFileProcessed }: FileUploadCardProps) {
               </div>
               <div className="text-center p-4 bg-muted/50 rounded-lg">
                 <div className="text-2xl font-bold text-green-600" data-testid="stat-valid">{parseResult.stats.validRecords}</div>
-                <div className="text-sm text-muted-foreground">{t('validRecords')}</div>
+                <div className="text-sm text-muted-foreground leading-tight">
+                  {t('language') === 'en' ? (
+                    <>
+                      <div>After Modification</div>
+                      <div>Records</div>
+                    </>
+                  ) : (
+                    <>
+                      <div>変更後</div>
+                      <div>レコード数</div>
+                    </>
+                  )}
+                </div>
               </div>
               <div className="text-center p-4 bg-muted/50 rounded-lg">
                 <div className="text-2xl font-bold text-orange-600" data-testid="stat-skipped">{parseResult.stats.skippedRecords}</div>
