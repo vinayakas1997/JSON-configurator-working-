@@ -99,9 +99,20 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
     return (mapping.data_type === 'BOOL' || mapping.data_type === 'CHANNEL') && mapping.opcua_reg_add.endsWith('_BC');
   };
 
-  // Helper function to identify MODIFIED CHANNEL entries
+  // Helper function to identify MODIFIED CHANNEL entries (for display purposes)
   const isModifiedChannel = (mapping: AddressMapping) => {
     return mapping.data_type === 'modified channel';
+  };
+  
+  // Helper function to check if a BOOL entry was created by a modified channel
+  const isBoolFromModifiedChannel = (mapping: AddressMapping, modifiedChannelIndex: number): boolean => {
+    if (mapping.data_type !== 'BOOL' || !mapping.plc_reg_add.includes('.')) return false;
+    
+    const modifiedMapping = mappings[modifiedChannelIndex];
+    if (!modifiedMapping || !isModifiedChannel(modifiedMapping)) return false;
+    
+    const baseAddress = modifiedMapping.plc_reg_add;
+    return mapping.plc_reg_add.startsWith(baseAddress + '.');
   };
 
   // Helper function to extract used bits from related BOOL entries
@@ -117,14 +128,8 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
           // Apply normalization logic for manual entries (same as CSV parsing):
           // Single digit: "1" -> "10", "2" -> "20", etc.
           // Two digits: "01" -> "01", "13" -> "13", etc.
-          let normalizedBitPart: string;
-          if (bitPart.length === 1) {
-            normalizedBitPart = bitPart + '0'; // "1" becomes "10"
-          } else {
-            normalizedBitPart = bitPart; // "01" stays "01"
-          }
-          
-          const bitNumber = parseInt(normalizedBitPart);
+          // Parse bit part directly as integer (no normalization needed)
+          const bitNumber = parseInt(bitPart);
           if (!isNaN(bitNumber) && bitNumber >= 0 && bitNumber <= 15) {
             usedBits.push(bitNumber);
           }
@@ -158,28 +163,15 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
         });
       }
       
-      // Extract bits from modified channel metadata
-      if (isModifiedChannel(mapping) && (mapping as any).metadata?.bits) {
-        const bits = (mapping as any).metadata.bits;
-        bits.forEach((bit: number) => {
-          if (typeof bit === 'number' && bit >= 0 && bit <= 15) {
-            bitData.modifiedBits.add(bit);
-          }
-        });
-      }
+      // Extract bits from modified channel - now these are individual BOOL entries
+      // We don't need metadata extraction anymore as bits are individual BOOL mappings
       
       // Extract bits from individual BOOL entries
       if (mapping.data_type === 'BOOL' && mapping.plc_reg_add.includes('.')) {
         const bitPart = mapping.plc_reg_add.split('.')[1];
         if (bitPart) {
-          let normalizedBitPart: string;
-          if (bitPart.length === 1) {
-            normalizedBitPart = bitPart + '0';
-          } else {
-            normalizedBitPart = bitPart;
-          }
-          
-          const bitNumber = parseInt(normalizedBitPart);
+          // Parse bit part directly as integer (no normalization needed)
+          const bitNumber = parseInt(bitPart);
           if (!isNaN(bitNumber) && bitNumber >= 0 && bitNumber <= 15) {
             bitData.boolBits.add(bitNumber);
           }
@@ -200,8 +192,10 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
     // Get current mapping's selected bits to exclude from modified bits
     const currentMapping = mappings[currentIndex];
     const currentModifiedBits = new Set<number>();
-    if (isModifiedChannel(currentMapping) && (currentMapping as any).metadata?.bits) {
-      (currentMapping as any).metadata.bits.forEach((bit: number) => currentModifiedBits.add(bit));
+    // With the new approach, bits are stored in modifiedChannelBits state
+    if (isModifiedChannel(currentMapping)) {
+      const bits = modifiedChannelBits.get(currentIndex) || new Set();
+      bits.forEach((bit: number) => currentModifiedBits.add(bit));
     }
     
     // Filter out current mapping's bits from modified bits
@@ -260,21 +254,34 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
     return newBitStates;
   }, [JSON.stringify(mappings)]);
 
-  // Initialize modified channel bits from metadata when mappings change
+  // Initialize modified channel bits and comments from existing BOOL entries when mappings change
   useEffect(() => {
     const newModifiedBits = new Map<number, Set<number>>();
     const newModifiedComments = new Map<number, string>();
     
     mappings.forEach((mapping, index) => {
       if (isModifiedChannel(mapping)) {
-        // Initialize bits from metadata
-        const metadata = (mapping as any).metadata;
-        if (metadata && metadata.bits) {
-          newModifiedBits.set(index, new Set(metadata.bits));
-        }
+        // Find all related BOOL entries and extract bit numbers
+        const baseAddress = mapping.plc_reg_add;
+        const bits = new Set<number>();
+        
+        mappings.forEach((otherMapping) => {
+          if (otherMapping.data_type === 'BOOL' && otherMapping.plc_reg_add.startsWith(baseAddress + '.')) {
+            const bitPart = otherMapping.plc_reg_add.split('.')[1];
+            if (bitPart) {
+              const bitNum = parseInt(bitPart);
+              if (!isNaN(bitNum) && bitNum >= 0 && bitNum <= 15) {
+                bits.add(bitNum);
+              }
+            }
+          }
+        });
+        
+        newModifiedBits.set(index, bits);
+        
         // Initialize comments from description
-        if ((mapping as any).description) {
-          newModifiedComments.set(index, (mapping as any).description);
+        if (mapping.description) {
+          newModifiedComments.set(index, mapping.description);
         }
       }
     });
@@ -303,41 +310,93 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
     setExpandedBoolChannels(newExpanded);
   };
 
-  // Handler for modified channel bit selection
+  // Handler for modified channel bit selection - creates individual BOOL entries
   const toggleModifiedChannelBit = (mappingIndex: number, bitIndex: number) => {
-    setModifiedChannelBits(prev => {
-      const newMap = new Map(prev);
-      const currentBits = newMap.get(mappingIndex) || new Set<number>();
-      const newBits = new Set<number>(currentBits);
+    const baseMapping = mappings[mappingIndex];
+    const baseAddress = baseMapping.plc_reg_add;
+    const comment = modifiedChannelComments.get(mappingIndex) || '';
+    
+    // Get current selected bits for this modified channel
+    const currentBits = modifiedChannelBits.get(mappingIndex) || new Set<number>();
+    const individualBoolAddress = `${baseAddress}.${bitIndex.toString().padStart(2, '0')}`;
+    
+    let updatedMappings = [...mappings];
+    
+    if (currentBits.has(bitIndex)) {
+      // Find the index of the BOOL entry to remove
+      const boolEntryIndex = updatedMappings.findIndex(mapping => 
+        mapping.data_type === 'BOOL' && mapping.plc_reg_add === individualBoolAddress
+      );
       
-      if (newBits.has(bitIndex)) {
-        newBits.delete(bitIndex);
-      } else {
-        newBits.add(bitIndex);
+      // Remove the individual BOOL entry
+      updatedMappings = updatedMappings.filter(mapping => 
+        !(mapping.data_type === 'BOOL' && mapping.plc_reg_add === individualBoolAddress)
+      );
+      
+      // Update selectedRegisters to account for the removed entry
+      if (boolEntryIndex !== -1) {
+        setSelectedRegisters(prev => {
+          const updatedSelected = new Set<number>();
+          prev.forEach(index => {
+            if (index < boolEntryIndex) {
+              updatedSelected.add(index);
+            } else if (index > boolEntryIndex) {
+              updatedSelected.add(index - 1);
+            }
+            // index === boolEntryIndex is not added (it's removed)
+          });
+          return updatedSelected;
+        });
       }
       
-      newMap.set(mappingIndex, newBits);
+      // Update the bits state
+      const newBits = new Set(currentBits);
+      newBits.delete(bitIndex);
+      setModifiedChannelBits(prev => {
+        const newMap = new Map(prev);
+        newMap.set(mappingIndex, newBits);
+        return newMap;
+      });
+    } else {
+      // Add new individual BOOL entry
+      const newBoolMapping: AddressMapping = {
+        plc_reg_add: individualBoolAddress,
+        data_type: 'BOOL',
+        opcua_reg_add: '', // User will fill this
+        description: comment
+      };
       
-      // Persist to mapping metadata
-      const updatedMappings = mappings.map((mapping, index) => {
-        if (index === mappingIndex) {
-          return {
-            ...mapping,
-            metadata: {
-              ...((mapping as any).metadata || {}),
-              bits: Array.from(newBits)
-            }
-          };
-        }
-        return mapping;
+      // Insert right after the modified channel entry
+      updatedMappings.splice(mappingIndex + 1, 0, newBoolMapping);
+      
+      // Update the bits state
+      const newBits = new Set(currentBits);
+      newBits.add(bitIndex);
+      setModifiedChannelBits(prev => {
+        const newMap = new Map(prev);
+        newMap.set(mappingIndex, newBits);
+        return newMap;
       });
       
-      onMappingsChange(updatedMappings);
-      return newMap;
-    });
+      // Update selectedRegisters to account for the new entry
+      setSelectedRegisters(prev => {
+        const updatedSelected = new Set<number>();
+        prev.forEach(index => {
+          if (index <= mappingIndex) {
+            updatedSelected.add(index);
+          } else {
+            updatedSelected.add(index + 1);
+          }
+        });
+        updatedSelected.add(mappingIndex + 1); // Select the new BOOL entry
+        return updatedSelected;
+      });
+    }
+    
+    onMappingsChange(updatedMappings);
   };
 
-  // Handler for modified channel comment updates
+  // Handler for modified channel comment updates - updates all related BOOL entries
   const updateModifiedChannelComment = (mappingIndex: number, comment: string) => {
     setModifiedChannelComments(prev => {
       const newMap = new Map(prev);
@@ -345,8 +404,22 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
       return newMap;
     });
     
-    // Update the description field in the mapping
+    // Update the description field in the main modified channel mapping
     updateMapping(mappingIndex, 'description', comment);
+    
+    // Update all related BOOL entries created by this modified channel
+    const baseMapping = mappings[mappingIndex];
+    if (isModifiedChannel(baseMapping)) {
+      const baseAddress = baseMapping.plc_reg_add;
+      const updatedMappings = mappings.map((mapping, index) => {
+        // Update all BOOL entries that belong to this modified channel
+        if (mapping.data_type === 'BOOL' && mapping.plc_reg_add.startsWith(baseAddress + '.')) {
+          return { ...mapping, description: comment };
+        }
+        return mapping;
+      });
+      onMappingsChange(updatedMappings);
+    }
   };
 
   const toggleSelectAll = () => {
@@ -402,6 +475,13 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
     };
     // Add new mapping at the top of the list so user can see it easily
     onMappingsChange([newMapping, ...mappings]);
+    
+    // Update selectedRegisters to account for the new mapping at index 0
+    // All existing indices shift by 1, and select the new mapping at index 0
+    const updatedSelectedRegisters = new Set<number>();
+    selectedRegisters.forEach(index => updatedSelectedRegisters.add(index + 1));
+    updatedSelectedRegisters.add(0); // Select the new mapping
+    setSelectedRegisters(updatedSelectedRegisters);
   };
 
   const updateMapping = (index: number, field: keyof AddressMapping, value: string) => {
@@ -414,6 +494,20 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
   const removeMapping = (index: number) => {
     const updatedMappings = mappings.filter((_, i) => i !== index);
     onMappingsChange(updatedMappings);
+    
+    // Update selectedRegisters to account for the removed mapping
+    const updatedSelectedRegisters = new Set<number>();
+    selectedRegisters.forEach(selectedIndex => {
+      if (selectedIndex < index) {
+        // Indices before the removed one stay the same
+        updatedSelectedRegisters.add(selectedIndex);
+      } else if (selectedIndex > index) {
+        // Indices after the removed one shift down by 1
+        updatedSelectedRegisters.add(selectedIndex - 1);
+      }
+      // selectedIndex === index is not added (it's removed)
+    });
+    setSelectedRegisters(updatedSelectedRegisters);
   };
 
   return (
