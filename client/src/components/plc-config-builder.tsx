@@ -32,8 +32,8 @@ export function PlcConfigBuilder() {
   const [plcIp, setPlcIp] = useState("192.168.2.2");
   const [opcuaUrl, setOpcuaUrl] = useState("opc.tcp://192.168.1.20:4840");
   const [addressMappings, setAddressMappings] = useState<AddressMapping[]>([
-    { plc_reg_add: "2.01", data_type: "int16", opcua_reg_add: "BOOL_VAR01" },
-    { plc_reg_add: "C0001", data_type: "int16", opcua_reg_add: "INT_VAR01" }
+    { plc_reg_add: "2.01", data_type: "BOOL", opcua_reg_add: "BOOL_VAR01" },
+    { plc_reg_add: "C0001", data_type: "WORD", opcua_reg_add: "INT_VAR01" }
   ]);
   
   // Memory area selections state
