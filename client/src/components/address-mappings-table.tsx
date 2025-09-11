@@ -109,7 +109,7 @@ export function AddressMappingsTable({ mappings, onMappingsChange }: AddressMapp
 
   // Helper function to identify BOOL CHANNEL entries
   const isBoolChannel = (mapping: AddressMapping) => {
-    return mapping.data_type === 'BOOL' && mapping.opcua_reg_add.endsWith('_BC');
+    return (mapping.data_type === 'BOOL' || mapping.data_type === 'CHANNEL') && mapping.opcua_reg_add.endsWith('_BC');
   };
 
   // Helper function to extract used bits from related BOOL entries
@@ -118,7 +118,7 @@ export function AddressMappingsTable({ mappings, onMappingsChange }: AddressMapp
     const baseAddress = channelAddress.split('.')[0];
     const usedBits: number[] = [];
     
-    mappings.forEach(mapping => {
+    mappings.forEach((mapping) => {
       if (mapping.data_type === 'BOOL' && mapping.plc_reg_add.startsWith(baseAddress + '.')) {
         const bitPart = mapping.plc_reg_add.split('.')[1];
         if (bitPart) {
