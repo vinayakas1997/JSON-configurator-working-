@@ -41,6 +41,7 @@ export function PlcConfigBuilder() {
   const [selectedMemoryAreas, setSelectedMemoryAreas] = useState<Set<string>>(
     new Set(['I/O', 'A', 'C', 'D', 'E', 'T', 'H'])
   );
+  const [selectedRegisters, setSelectedRegisters] = useState<Set<number>>(new Set());
   
   // File parsing results state
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
@@ -89,30 +90,58 @@ export function PlcConfigBuilder() {
     setAddressMappings(updatedMappings);
   }, [plcNo]); // Only depend on plcNo to avoid infinite loops
 
+  // Helper function to get memory area from mapping  
+  const getMemoryAreaFromMapping = (mapping: AddressMapping): string => {
+    const firstChar = mapping.plc_reg_add.charAt(0).toUpperCase();
+    // Group I and O into I/O, and numeric addresses as I/O
+    if (firstChar === 'I' || firstChar === 'O' || /^\d/.test(mapping.plc_reg_add)) {
+      return 'I/O';
+    }
+    return firstChar;
+  };
+
   const generateJson = (): string => {
-    // Transform address mappings to match the required format (lowercase data types)
-    const transformedMappings = addressMappings.map((mapping) => {
-      const result: any = {
-        plc_reg_add: mapping.plc_reg_add,
-        data_type: mapping.data_type.toLowerCase(),
-        opcua_reg_add: mapping.opcua_reg_add,
-        description: (mapping as any).description || ''
-      };
-      
-      // Include metadata if it exists (for boolean channels)
-      if ((mapping as any).metadata) {
-        result.metadata = (mapping as any).metadata;
-      }
-      
-      return result;
-    });
+    // Filter and transform address mappings based on selections
+    const filteredMappings = addressMappings
+      .map((mapping, index) => ({ mapping, index }))
+      .filter(({ mapping, index }) => {
+        // Filter by memory area selection
+        const memoryArea = getMemoryAreaFromMapping(mapping);
+        if (!selectedMemoryAreas.has(memoryArea)) {
+          return false;
+        }
+        
+        // Filter by individual register selection (if no registers selected, select all)
+        if (selectedRegisters.size > 0 && !selectedRegisters.has(index)) {
+          return false;
+        }
+        
+        return true;
+      })
+      .map(({ mapping }) => {
+        const memoryArea = getMemoryAreaFromMapping(mapping);
+        const result: any = {
+          plc_reg_add: mapping.plc_reg_add,
+          data_type: mapping.data_type.toLowerCase(),
+          opcua_reg_add: mapping.opcua_reg_add,
+          description: (mapping as any).description || '',
+          Memory_Area: memoryArea
+        };
+        
+        // Include metadata if it exists (for boolean channels)
+        if ((mapping as any).metadata) {
+          result.metadata = (mapping as any).metadata;
+        }
+        
+        return result;
+      });
 
     const config: ConfigFile = {
       plcs: [{
         plc_name: plcName,
         plc_ip: plcIp,
         opcua_url: opcuaUrl,
-        address_mappings: transformedMappings as any
+        address_mappings: filteredMappings as any
       }]
     };
     return JSON.stringify(config, null, 2);
@@ -675,6 +704,7 @@ export function PlcConfigBuilder() {
                     mappings={addressMappings}
                     onMappingsChange={setAddressMappings}
                     selectedMemoryAreas={selectedMemoryAreas}
+                    onSelectedRegistersChange={setSelectedRegisters}
                   />
                 </div>
               </CollapsibleContent>

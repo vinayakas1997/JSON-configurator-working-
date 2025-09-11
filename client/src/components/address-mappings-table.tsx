@@ -11,6 +11,7 @@ interface AddressMappingsTableProps {
   mappings: AddressMapping[];
   onMappingsChange: (mappings: AddressMapping[]) => void;
   selectedMemoryAreas?: Set<string>;
+  onSelectedRegistersChange?: (selectedRegisters: Set<number>) => void;
 }
 
 // 16-bit grid component for boolean channel visualization
@@ -84,7 +85,7 @@ function BooleanChannelGrid({
   );
 }
 
-export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemoryAreas = new Set() }: AddressMappingsTableProps) {
+export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemoryAreas = new Set(), onSelectedRegistersChange }: AddressMappingsTableProps) {
   const { t } = useLanguage();
   
   // State for tracking selected registers (initially all selected)
@@ -148,11 +149,19 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
       });
   }, [mappings, selectedMemoryAreas]);
 
-  // Initialize registers as selected based on visible mappings
+  // Initialize registers as selected only on first render
   useEffect(() => {
     const visibleIndices = new Set(visibleMappings.map(({ originalIndex }) => originalIndex));
-    setSelectedRegisters(visibleIndices);
-  }, [visibleMappings]);
+    // Only initialize if selectedRegisters is empty to preserve user selections
+    setSelectedRegisters(prev => prev.size === 0 ? visibleIndices : prev);
+  }, [visibleMappings.length]); // Only depend on length changes, not content changes
+
+  // Notify parent when selectedRegisters changes
+  useEffect(() => {
+    if (onSelectedRegistersChange) {
+      onSelectedRegistersChange(selectedRegisters);
+    }
+  }, [selectedRegisters, onSelectedRegistersChange]);
 
   // Derive bit states directly from current mappings (more reliable than useEffect)
   const channelBitStates = useMemo(() => {
@@ -237,7 +246,8 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
       data_type: "WORD",
       opcua_reg_add: ""
     };
-    onMappingsChange([...mappings, newMapping]);
+    // Add new mapping at the top of the list so user can see it easily
+    onMappingsChange([newMapping, ...mappings]);
   };
 
   const updateMapping = (index: number, field: keyof AddressMapping, value: string) => {
