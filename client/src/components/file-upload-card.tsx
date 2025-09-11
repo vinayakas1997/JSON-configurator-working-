@@ -197,7 +197,6 @@ export function FileUploadCard({ onFileProcessed, onClose, plcNo = 1 }: FileUplo
       onFileProcessed(parseResult.addressMappings);
       setParseResult(null);
       setShowPreview(false);
-      onClose?.(); // Close the upload card after import
       toast({
         title: "Import Successful",
         description: `${parseResult.stats.validRecords} address mappings have been imported`,
