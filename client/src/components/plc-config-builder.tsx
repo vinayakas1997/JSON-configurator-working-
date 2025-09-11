@@ -90,79 +90,21 @@ export function PlcConfigBuilder() {
   }, [plcNo]); // Only depend on plcNo to avoid infinite loops
 
   const generateJson = (): string => {
-    // Helper function to extract used bits with descriptions for a boolean channel
-    const extractBitMappings = (channelAddress: string) => {
-      const baseAddress = channelAddress.split('.')[0];
-      const bitMappings: Record<string, any> = {};
+    // Transform address mappings to match the required format (lowercase data types)
+    const transformedMappings = addressMappings.map((mapping) => {
+      const result: any = {
+        plc_reg_add: mapping.plc_reg_add,
+        data_type: mapping.data_type.toLowerCase(),
+        opcua_reg_add: mapping.opcua_reg_add,
+        description: (mapping as any).description || ''
+      };
       
-      // Find all related individual BOOL entries
-      addressMappings.forEach((mapping) => {
-        if (mapping.data_type === 'BOOL' && mapping.plc_reg_add.startsWith(baseAddress + '.')) {
-          const bitPart = mapping.plc_reg_add.split('.')[1];
-          if (bitPart) {
-            // Apply normalization logic for bit position
-            let normalizedBitPart: string;
-            if (bitPart.length === 1) {
-              normalizedBitPart = bitPart + '0'; // "1" becomes "10"
-            } else {
-              normalizedBitPart = bitPart; // "01" stays "01"
-            }
-            
-            const bitNumber = parseInt(normalizedBitPart);
-            if (!isNaN(bitNumber) && bitNumber >= 0 && bitNumber <= 15) {
-              const bitKey = `bit_${bitNumber.toString().padStart(2, '0')}`;
-              bitMappings[bitKey] = {
-                address: mapping.plc_reg_add,
-                description: (mapping as any).description || '',
-                bit_position: bitNumber
-              };
-            }
-          }
-        }
-      });
+      // Include metadata if it exists (for boolean channels)
+      if ((mapping as any).metadata) {
+        result.metadata = (mapping as any).metadata;
+      }
       
-      return bitMappings;
-    };
-
-    // Transform address mappings to match the required format
-    const transformedMappings: any[] = [];
-    const processedChannels = new Set<string>();
-
-    addressMappings.forEach((mapping) => {
-      // Skip individual BOOL entries - they'll be included in metadata
-      if (mapping.data_type === 'BOOL' && mapping.plc_reg_add.includes('.')) {
-        return;
-      }
-
-      // Handle boolean channels (CHANNEL data type)
-      if (mapping.data_type === 'CHANNEL') {
-        const baseAddress = mapping.plc_reg_add.split('.')[0];
-        if (!processedChannels.has(baseAddress)) {
-          processedChannels.add(baseAddress);
-          
-          const bitMappings = extractBitMappings(mapping.plc_reg_add);
-          const bitCount = Object.keys(bitMappings).length;
-          
-          transformedMappings.push({
-            plc_reg_add: baseAddress,
-            data_type: "channel",
-            opcua_reg_add: mapping.opcua_reg_add,
-            description: (mapping as any).description || `Boolean channel for address ${baseAddress}`,
-            metadata: {
-              bit_count: bitCount,
-              bit_mappings: bitMappings
-            }
-          });
-        }
-      } else {
-        // Handle other data types with simple format
-        transformedMappings.push({
-          plc_reg_add: mapping.plc_reg_add,
-          data_type: mapping.data_type.toLowerCase(),
-          opcua_reg_add: mapping.opcua_reg_add,
-          description: (mapping as any).description || ''
-        });
-      }
+      return result;
     });
 
     const config: ConfigFile = {

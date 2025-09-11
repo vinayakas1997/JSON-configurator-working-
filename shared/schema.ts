@@ -6,7 +6,16 @@ import { z } from "zod";
 export const addressMappingSchema = z.object({
   plc_reg_add: z.string().min(1, "PLC register address is required"),
   data_type: z.enum(["int16", "int32", "float32", "bool", "string", "CHANNEL", "BOOL", "WORD", "UDINT", "DWORD", "INT", "REAL", "LREAL"]),
-  opcua_reg_add: z.string().min(1, "OPC UA register address is required")
+  opcua_reg_add: z.string().min(1, "OPC UA register address is required"),
+  description: z.string().optional(),
+  metadata: z.object({
+    bit_count: z.number(),
+    bit_mappings: z.record(z.object({
+      address: z.string(),
+      description: z.string(),
+      bit_position: z.number()
+    }))
+  }).optional()
 });
 
 export const plcConfigSchema = z.object({

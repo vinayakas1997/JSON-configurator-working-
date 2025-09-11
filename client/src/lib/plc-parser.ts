@@ -229,7 +229,8 @@ export function parseCSVData(csvData: string[][], plcNumber: number = 1): ParseR
       otherMappings.push({
         plc_reg_add: normalizedAddress,
         data_type: 'CHANNEL', // Keep original data type
-        opcua_reg_add: opcuaName
+        opcua_reg_add: opcuaName,
+        description: item.description
       });
     } else {
       // Handle other data types - keep original data type names
@@ -238,7 +239,8 @@ export function parseCSVData(csvData: string[][], plcNumber: number = 1): ParseR
       otherMappings.push({
         plc_reg_add: normalizedAddress,
         data_type: item.data_type as AddressMapping['data_type'], // Keep original data type
-        opcua_reg_add: opcuaName
+        opcua_reg_add: opcuaName,
+        description: item.description
       });
     }
   }
@@ -251,17 +253,33 @@ export function parseCSVData(csvData: string[][], plcNumber: number = 1): ParseR
   // Process grouped boolean addresses
   for (const [baseAddress, bits] of Array.from(booleanGroups.entries())) {
     if (bits.length > 1) {
-      // Only group if there are multiple bits - create a boolean channel
+      // Only group if there are multiple bits - create a boolean channel with metadata
       booleanChannelCount++;
       const opcuaName = generateOpcuaName(baseAddress, 'BOOL', undefined, true, plcNumber);
       
       // Track the base address that represents this boolean channel
       booleanChannelAddresses.push(baseAddress);
       
+      // Create bit metadata following Python approach
+      const bit_metadata: Record<string, any> = {};
+      for (const bit of bits) {
+        const bit_key = `bit_${bit.bitPosition}`; // Use the normalized bit position
+        bit_metadata[bit_key] = {
+          address: bit.normalizedAddress,
+          description: bit.description,
+          bit_position: parseInt(bit.bitPosition)
+        };
+      }
+      
       addressMappings.push({
         plc_reg_add: baseAddress,
         data_type: 'CHANNEL', // Use CHANNEL for grouped boolean channels
-        opcua_reg_add: opcuaName
+        opcua_reg_add: opcuaName,
+        description: `Boolean channel for address ${baseAddress}`,
+        metadata: {
+          bit_count: bits.length,
+          bit_mappings: bit_metadata
+        }
       });
     } else {
       // Single bit, add as individual mapping
@@ -277,7 +295,8 @@ export function parseCSVData(csvData: string[][], plcNumber: number = 1): ParseR
       addressMappings.push({
         plc_reg_add: bit.normalizedAddress,
         data_type: 'BOOL', // Keep original BOOL type
-        opcua_reg_add: opcuaName
+        opcua_reg_add: opcuaName,
+        description: bit.description
       });
     }
   }
