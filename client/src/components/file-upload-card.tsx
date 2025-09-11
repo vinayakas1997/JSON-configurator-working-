@@ -21,6 +21,7 @@ export function FileUploadCard({ onFileProcessed }: FileUploadCardProps) {
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState<string>("");
+  const [rawCSVData, setRawCSVData] = useState<string[][]>([]);
 
   const processFile = (file: File) => {
     if (!file.name.match(/\.(csv|txt)$/i)) {
@@ -55,6 +56,9 @@ export function FileUploadCard({ onFileProcessed }: FileUploadCardProps) {
 
         try {
           const data = results.data as string[][];
+          
+          // Store the raw CSV data
+          setRawCSVData(data);
           
           // Skip header row if present
           const startIndex = data[0]?.some(cell => 
@@ -136,6 +140,7 @@ export function FileUploadCard({ onFileProcessed }: FileUploadCardProps) {
     setShowPreview(false);
     setProgress(0);
     setUploadedFileName("");
+    setRawCSVData([]);
   };
 
   return (
@@ -250,18 +255,22 @@ export function FileUploadCard({ onFileProcessed }: FileUploadCardProps) {
 
             {/* Preview Content */}
             {showPreview && (
-              <div className="border rounded-lg p-4 max-h-96 overflow-y-auto bg-muted/25" data-testid="container-preview-data">
+              <div className="border rounded-lg p-4 max-h-96 overflow-auto bg-muted/25" data-testid="container-preview-data">
                 <h4 className="font-semibold mb-3">{t('previewTitle')}</h4>
-                <div className="space-y-2">
-                  {parseResult.addressMappings.map((mapping, index) => (
-                    <div key={index} className="text-sm bg-background p-2 rounded border" data-testid={`preview-mapping-${index}`}>
-                      <div className="grid grid-cols-3 gap-2">
-                        <span className="font-mono">{mapping.plc_reg_add}</span>
-                        <span className="text-muted-foreground">{mapping.data_type}</span>
-                        <span className="font-mono text-xs">{mapping.opcua_reg_add}</span>
-                      </div>
-                    </div>
-                  ))}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {rawCSVData.map((row, rowIndex) => (
+                        <tr key={rowIndex} data-testid={`preview-row-${rowIndex}`} className={rowIndex === 0 ? "font-semibold bg-muted/50" : ""}>
+                          {row.map((cell, cellIndex) => (
+                            <td key={cellIndex} className="p-2 border border-border font-mono text-xs" data-testid={`cell-${rowIndex}-${cellIndex}`}>
+                              {cell}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
