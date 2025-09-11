@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import { Trash2, Plus, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,23 +89,6 @@ export function AddressMappingsTable({ mappings, onMappingsChange }: AddressMapp
   // State for tracking selected registers (initially all selected)
   const [selectedRegisters, setSelectedRegisters] = useState<Set<number>>(new Set());
   const [expandedBoolChannels, setExpandedBoolChannels] = useState<Set<number>>(new Set());
-  const [channelBitStates, setChannelBitStates] = useState<Map<number, Set<number>>>(new Map());
-
-  // Initialize all registers as selected when mappings change
-  useEffect(() => {
-    const allIndices = new Set(mappings.map((_, index) => index));
-    setSelectedRegisters(allIndices);
-    
-    // Initialize bit states for BOOL CHANNEL entries
-    const newBitStates = new Map<number, Set<number>>();
-    mappings.forEach((mapping, index) => {
-      if (isBoolChannel(mapping)) {
-        const usedBits = extractUsedBits(mapping.plc_reg_add);
-        newBitStates.set(index, new Set(usedBits));
-      }
-    });
-    setChannelBitStates(newBitStates);
-  }, [mappings]);
 
   // Helper function to identify BOOL CHANNEL entries
   const isBoolChannel = (mapping: AddressMapping) => {
@@ -122,7 +105,17 @@ export function AddressMappingsTable({ mappings, onMappingsChange }: AddressMapp
       if (mapping.data_type === 'BOOL' && mapping.plc_reg_add.startsWith(baseAddress + '.')) {
         const bitPart = mapping.plc_reg_add.split('.')[1];
         if (bitPart) {
-          const bitNumber = parseInt(bitPart);
+          // Apply normalization logic for manual entries (same as CSV parsing):
+          // Single digit: "1" -> "10", "2" -> "20", etc.
+          // Two digits: "01" -> "01", "13" -> "13", etc.
+          let normalizedBitPart: string;
+          if (bitPart.length === 1) {
+            normalizedBitPart = bitPart + '0'; // "1" becomes "10"
+          } else {
+            normalizedBitPart = bitPart; // "01" stays "01"
+          }
+          
+          const bitNumber = parseInt(normalizedBitPart);
           if (!isNaN(bitNumber) && bitNumber >= 0 && bitNumber <= 15) {
             usedBits.push(bitNumber);
           }
@@ -132,6 +125,24 @@ export function AddressMappingsTable({ mappings, onMappingsChange }: AddressMapp
     
     return usedBits;
   };
+
+  // Initialize all registers as selected when mappings change
+  useEffect(() => {
+    const allIndices = new Set(mappings.map((_, index) => index));
+    setSelectedRegisters(allIndices);
+  }, [mappings]);
+
+  // Derive bit states directly from current mappings (more reliable than useEffect)
+  const channelBitStates = useMemo(() => {
+    const newBitStates = new Map<number, Set<number>>();
+    mappings.forEach((mapping, index) => {
+      if (isBoolChannel(mapping)) {
+        const usedBits = extractUsedBits(mapping.plc_reg_add);
+        newBitStates.set(index, new Set(usedBits));
+      }
+    });
+    return newBitStates;
+  }, [JSON.stringify(mappings)]);
 
   const toggleRegisterSelection = (index: number) => {
     const newSelected = new Set(selectedRegisters);
@@ -162,41 +173,38 @@ export function AddressMappingsTable({ mappings, onMappingsChange }: AddressMapp
   };
 
   const toggleBit = (channelIndex: number, bitNumber: number) => {
-    const newBitStates = new Map(channelBitStates);
-    const currentBits = newBitStates.get(channelIndex) || new Set();
-    const newBits = new Set(currentBits);
-    
-    if (newBits.has(bitNumber)) {
-      newBits.delete(bitNumber);
-    } else {
-      newBits.add(bitNumber);
-    }
-    
-    newBitStates.set(channelIndex, newBits);
-    setChannelBitStates(newBitStates);
-
-    // Update the mappings to reflect bit changes
     const channelMapping = mappings[channelIndex];
     if (channelMapping && isBoolChannel(channelMapping)) {
       const baseAddress = channelMapping.plc_reg_add.split('.')[0];
-      const newMappings = [...mappings];
+      const currentBits = channelBitStates.get(channelIndex) || new Set();
+      
+      // Create new mappings array
+      let newMappings = [...mappings];
       
       // Remove old individual BOOL entries for this base address
-      const filteredMappings = newMappings.filter(mapping => 
+      newMappings = newMappings.filter(mapping => 
         !(mapping.data_type === 'BOOL' && mapping.plc_reg_add.startsWith(baseAddress + '.') && !mapping.opcua_reg_add.endsWith('_BC'))
       );
       
+      // Toggle the bit and create new bit set
+      const newBits = new Set(currentBits);
+      if (newBits.has(bitNumber)) {
+        newBits.delete(bitNumber);
+      } else {
+        newBits.add(bitNumber);
+      }
+      
       // Add new BOOL entries for selected bits
-      newBits.forEach(bit => {
+      newBits.forEach((bit: number) => {
         const bitMapping: AddressMapping = {
-          plc_reg_add: `${baseAddress}.${bit}`,
+          plc_reg_add: `${baseAddress}.${bit.toString().padStart(2, '0')}`,
           data_type: 'BOOL',
           opcua_reg_add: `${baseAddress}_B${bit.toString().padStart(2, '0')}`
         };
-        filteredMappings.push(bitMapping);
+        newMappings.push(bitMapping);
       });
       
-      onMappingsChange(filteredMappings);
+      onMappingsChange(newMappings);
     }
   };
 

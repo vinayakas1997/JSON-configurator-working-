@@ -68,8 +68,16 @@ export function normalizeBooleanAddress(address: string): string {
   } else {
     // Case b: Has decimal point, check if bit position needs padding
     const [baseAddress, bitPosition] = address.split('.', 2);
-    // Pad bit position to 2 digits
-    const normalizedBit = bitPosition.padStart(2, '0');
+    
+    // If single digit, treat as tens place: "1" -> "10", "2" -> "20", etc.
+    // If two digits, keep as is: "01" -> "01", "13" -> "13"
+    let normalizedBit: string;
+    if (bitPosition.length === 1) {
+      normalizedBit = bitPosition + '0'; // "1" becomes "10"
+    } else {
+      normalizedBit = bitPosition; // "01" stays "01"
+    }
+    
     return `${baseAddress}.${normalizedBit}`;
   }
 }
