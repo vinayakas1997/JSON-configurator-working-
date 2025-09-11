@@ -13,6 +13,7 @@ interface AddressMappingsTableProps {
   onMappingsChange: (mappings: AddressMapping[]) => void;
   selectedMemoryAreas?: Set<string>;
   onSelectedRegistersChange?: (selectedRegisters: Set<number>) => void;
+  plcNo?: number | string;
 }
 
 // 16-bit grid component for boolean channel visualization
@@ -86,7 +87,7 @@ function BooleanChannelGrid({
   );
 }
 
-export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemoryAreas = new Set(), onSelectedRegistersChange }: AddressMappingsTableProps) {
+export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemoryAreas = new Set(), onSelectedRegistersChange, plcNo = 1 }: AddressMappingsTableProps) {
   const { t } = useLanguage();
   
   // State for tracking selected registers (initially all selected)
@@ -521,7 +522,7 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
           const dataType = field === 'data_type' ? value : mapping.data_type;
           
           if (plcAddress && dataType) {
-            const plcNumber = 1; // Default PLC number, could be made configurable
+            const plcNumber = typeof plcNo === 'number' ? plcNo : parseInt(plcNo?.toString() || '1') || 1;
             const baseAddr = plcAddress.split('.')[0];
             let newOpcuaName: string;
             

@@ -729,6 +729,7 @@ export function PlcConfigBuilder() {
                     onMappingsChange={setAddressMappings}
                     selectedMemoryAreas={selectedMemoryAreas}
                     onSelectedRegistersChange={setSelectedRegisters}
+                    plcNo={plcNo}
                   />
                 </div>
               </CollapsibleContent>
