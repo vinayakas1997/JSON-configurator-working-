@@ -1,0 +1,109 @@
+{
+    "plcs": [
+        {
+            "plc_name": "FZ624",
+            "plc_ip": "192.168.20.61",
+            "opcua_url": "opc.tcp://192.168.1.20:4840",
+            "address_mappings": [
+                {
+                    "plc_reg_add": "0",
+                    "data_type": "channel",
+                    "opcua_reg_add": "CH_VAR_17",
+                    "description": "Boolean channel for address 0",
+                    "metadata": {
+                        "bit_count": 13,
+                        "bit_mappings": {
+                            "bit_00": {
+                                "address": "0.00",
+                                "description": "自動",
+                                "bit_position": 0
+                            },
+                            "bit_01": {
+                                "address": "0.01",
+                                "description": "運転準備",
+                                "bit_position": 1
+                            },
+                            "bit_02": {
+                                "address": "0.02",
+                                "description": "自動起動",
+                                "bit_position": 2
+                            },
+                            "bit_03": {
+                                "address": "0.03",
+                                "description": "ｻｲｸﾙ停止",
+                                "bit_position": 3
+                            },
+                            "bit_04": {
+                                "address": "0.04",
+                                "description": "ﾘｾｯﾄ",
+                                "bit_position": 4
+                            },
+                            "bit_06": {
+                                "address": "0.06",
+                                "description": "設定値変更",
+                                "bit_position": 6
+                            },
+                            "bit_07": {
+                                "address": "0.07",
+                                "description": "原点復帰",
+                                "bit_position": 7
+                            },
+                            "bit_08": {
+                                "address": "0.08",
+                                "description": "ｻｰﾎﾞ原点復帰",
+                                "bit_position": 8
+                            },
+                            "bit_09": {
+                                "address": "0.09",
+                                "description": "ｻｰﾎﾞ原点",
+                                "bit_position": 9
+                            },
+                            "bit_13": {
+                                "address": "0.13",
+                                "description": "ｻｰﾎﾞｱﾗｰﾑ",
+                                "bit_position": 13
+                            },
+                            "bit_14": {
+                                "address": "0.14",
+                                "description": "ﾘﾌﾀCVｻｰﾏﾙまとめ",
+                                "bit_position": 14
+                            },
+                            "bit_15": {
+                                "address": "0.15",
+                                "description": "CVｻｰﾏﾙまとめ",
+                                "bit_position": 15
+                            }
+                        }
+                    }
+                },
+                {
+                    "plc_reg_add": "1080",
+                    "data_type": "channel",
+                    "opcua_reg_add": "CH_VAR_18",
+                    "description": "Boolean channel for address 1080",
+                    "metadata": {
+                        "bit_count": 4,
+                        "bit_mappings": {
+                            "bit_00": {
+                                "address": "1080.00",
+                                "description": "CPU電池異常切",
+                                "bit_position": 0
+                            },
+                            "bit_01": {
+                                "address": "1080.01",
+                                "description": "ｻｰﾎﾞｱﾗｰﾑ切",
+                                "bit_position": 1
+                            },
+                            "bit_11": {
+                                "address": "1080.11",
+                                "description": "ﾘﾌﾀCVｻｰﾏﾙ異常切",
+                                "bit_position": 11
+                            },
+                            "bit_12": {
+                                "address": "1080.12",
+                                "description": "CVｻｰﾏﾙ異常切",
+                                "bit_position": 12
+                            }
+                        }
+                    }
+                },
