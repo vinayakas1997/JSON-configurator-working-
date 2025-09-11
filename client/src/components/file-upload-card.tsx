@@ -326,9 +326,25 @@ export function FileUploadCard({ onFileProcessed }: FileUploadCardProps) {
                 <h4 className="font-semibold mb-3">{t('previewTitle')}</h4>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted">
+                        <th className="p-2 border border-border text-left font-semibold" data-testid="header-col-0">
+                          {t('colNaming')}
+                        </th>
+                        <th className="p-2 border border-border text-left font-semibold" data-testid="header-col-1">
+                          {t('colDataType')}
+                        </th>
+                        <th className="p-2 border border-border text-left font-semibold" data-testid="header-col-2">
+                          {t('colRegisterAddress')}
+                        </th>
+                        <th className="p-2 border border-border text-left font-semibold" data-testid="header-col-3">
+                          {t('colComments')}
+                        </th>
+                      </tr>
+                    </thead>
                     <tbody>
                       {rawCSVData.map((row, rowIndex) => (
-                        <tr key={rowIndex} data-testid={`preview-row-${rowIndex}`} className={rowIndex === 0 ? "font-semibold bg-muted/50" : ""}>
+                        <tr key={rowIndex} data-testid={`preview-row-${rowIndex}`}>
                           {row.map((cell, cellIndex) => (
                             <td key={cellIndex} className="p-2 border border-border font-mono text-xs" data-testid={`cell-${rowIndex}-${cellIndex}`}>
                               {cell}
