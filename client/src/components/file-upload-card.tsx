@@ -58,7 +58,7 @@ export function FileUploadCard({ onFileProcessed }: FileUploadCardProps) {
         
         // Try to detect encoding - similar to Python's encoding detection
         let decodedString = '';
-        const encodingsToTry = ['UTF8', 'SJIS', 'EUCJP', 'JIS'];
+        const encodingsToTry = ['SJIS', 'UTF8', 'EUCJP', 'JIS'];
         
         for (const encoding of encodingsToTry) {
           try {
