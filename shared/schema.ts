@@ -5,7 +5,7 @@ import { z } from "zod";
 
 export const addressMappingSchema = z.object({
   plc_reg_add: z.string().min(1, "PLC register address is required"),
-  data_type: z.enum(["int16", "int32", "float32", "bool", "string", "CHANNEL", "BOOL", "WORD", "UDINT", "DWORD", "INT", "REAL", "LREAL"]),
+  data_type: z.enum(["int16", "int32", "float32", "bool", "string", "CHANNEL", "BOOL", "WORD", "UDINT", "DWORD", "INT", "REAL", "LREAL", "modified channel"]),
   opcua_reg_add: z.string().min(1, "OPC UA register address is required"),
   description: z.string().optional(),
   metadata: z.object({

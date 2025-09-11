@@ -69,8 +69,8 @@ export function PlcConfigBuilder() {
       if (mapping.opcua_reg_add.endsWith('_BC')) {
         // This is a grouped boolean channel - use BOOL with isBooleanChannel=true
         newOpcuaName = generateOpcuaName(baseAddr, 'BOOL', undefined, true, plcNumber);
-      } else if (mapping.data_type === 'CHANNEL') {
-        // This is a true CHANNEL mapping - use CHANNEL
+      } else if (mapping.data_type === 'CHANNEL' || mapping.data_type === 'modified channel') {
+        // This is a true CHANNEL mapping or modified channel - use CHANNEL
         newOpcuaName = generateOpcuaName(baseAddr, 'CHANNEL', undefined, false, plcNumber);
       } else if (mapping.data_type === 'BOOL' && mapping.plc_reg_add.includes('.')) {
         // Individual BOOL with bit position
@@ -122,7 +122,7 @@ export function PlcConfigBuilder() {
         const memoryArea = getMemoryAreaFromMapping(mapping);
         const result: any = {
           plc_reg_add: mapping.plc_reg_add,
-          data_type: mapping.data_type.toLowerCase(),
+          data_type: mapping.data_type === "modified channel" ? "channel" : mapping.data_type.toLowerCase(),
           opcua_reg_add: mapping.opcua_reg_add,
           description: (mapping as any).description || '',
           Memory_Area: memoryArea

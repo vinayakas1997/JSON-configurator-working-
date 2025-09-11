@@ -91,10 +91,17 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
   // State for tracking selected registers (initially all selected)
   const [selectedRegisters, setSelectedRegisters] = useState<Set<number>>(new Set());
   const [expandedBoolChannels, setExpandedBoolChannels] = useState<Set<number>>(new Set());
+  const [modifiedChannelBits, setModifiedChannelBits] = useState<Map<number, Set<number>>>(new Map());
+  const [modifiedChannelComments, setModifiedChannelComments] = useState<Map<number, string>>(new Map());
 
   // Helper function to identify BOOL CHANNEL entries
   const isBoolChannel = (mapping: AddressMapping) => {
     return (mapping.data_type === 'BOOL' || mapping.data_type === 'CHANNEL') && mapping.opcua_reg_add.endsWith('_BC');
+  };
+
+  // Helper function to identify MODIFIED CHANNEL entries
+  const isModifiedChannel = (mapping: AddressMapping) => {
+    return mapping.data_type === 'modified channel';
   };
 
   // Helper function to extract used bits from related BOOL entries
@@ -175,6 +182,29 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
     return newBitStates;
   }, [JSON.stringify(mappings)]);
 
+  // Initialize modified channel bits from metadata when mappings change
+  useEffect(() => {
+    const newModifiedBits = new Map<number, Set<number>>();
+    const newModifiedComments = new Map<number, string>();
+    
+    mappings.forEach((mapping, index) => {
+      if (isModifiedChannel(mapping)) {
+        // Initialize bits from metadata
+        const metadata = (mapping as any).metadata;
+        if (metadata && metadata.bits) {
+          newModifiedBits.set(index, new Set(metadata.bits));
+        }
+        // Initialize comments from description
+        if ((mapping as any).description) {
+          newModifiedComments.set(index, (mapping as any).description);
+        }
+      }
+    });
+    
+    setModifiedChannelBits(newModifiedBits);
+    setModifiedChannelComments(newModifiedComments);
+  }, [mappings]);
+
   const toggleRegisterSelection = (index: number) => {
     const newSelected = new Set(selectedRegisters);
     if (newSelected.has(index)) {
@@ -193,6 +223,52 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
       newExpanded.add(index);
     }
     setExpandedBoolChannels(newExpanded);
+  };
+
+  // Handler for modified channel bit selection
+  const toggleModifiedChannelBit = (mappingIndex: number, bitIndex: number) => {
+    setModifiedChannelBits(prev => {
+      const newMap = new Map(prev);
+      const currentBits = newMap.get(mappingIndex) || new Set<number>();
+      const newBits = new Set<number>(currentBits);
+      
+      if (newBits.has(bitIndex)) {
+        newBits.delete(bitIndex);
+      } else {
+        newBits.add(bitIndex);
+      }
+      
+      newMap.set(mappingIndex, newBits);
+      
+      // Persist to mapping metadata
+      const updatedMappings = mappings.map((mapping, index) => {
+        if (index === mappingIndex) {
+          return {
+            ...mapping,
+            metadata: {
+              ...((mapping as any).metadata || {}),
+              bits: Array.from(newBits)
+            }
+          };
+        }
+        return mapping;
+      });
+      
+      onMappingsChange(updatedMappings);
+      return newMap;
+    });
+  };
+
+  // Handler for modified channel comment updates
+  const updateModifiedChannelComment = (mappingIndex: number, comment: string) => {
+    setModifiedChannelComments(prev => {
+      const newMap = new Map(prev);
+      newMap.set(mappingIndex, comment);
+      return newMap;
+    });
+    
+    // Update the description field in the mapping
+    updateMapping(mappingIndex, 'description', comment);
   };
 
   const toggleSelectAll = () => {
@@ -313,14 +389,17 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
           <tbody>
             {visibleMappings.map(({ mapping, originalIndex }) => {
               const isBoolChannelEntry = isBoolChannel(mapping);
+              const isModifiedChannelEntry = isModifiedChannel(mapping);
               const isExpanded = expandedBoolChannels.has(originalIndex);
               const selectedBits = channelBitStates.get(originalIndex) || new Set();
+              const modifiedBits = modifiedChannelBits.get(originalIndex) || new Set();
+              const modifiedComment = modifiedChannelComments.get(originalIndex) || '';
               
               return (
                 <Fragment key={originalIndex}>
                   <tr 
                     className={`table-row border-t border-border fade-in ${
-                      isBoolChannelEntry ? 'bg-orange-50 dark:bg-orange-900/20' : ''
+                      isBoolChannelEntry ? 'bg-orange-50 dark:bg-orange-900/20' : isModifiedChannelEntry ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                     }`} 
                     data-testid={`row-mapping-${originalIndex}`}
                   >
@@ -331,7 +410,7 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
                           onCheckedChange={() => toggleRegisterSelection(originalIndex)}
                           data-testid={`checkbox-select-${originalIndex}`}
                         />
-                        {isBoolChannelEntry && (
+                        {(isBoolChannelEntry || isModifiedChannelEntry) && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -369,6 +448,7 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="CHANNEL">CHANNEL</SelectItem>
+                          <SelectItem value="modified channel">MODIFIED CHANNEL</SelectItem>
                           <SelectItem value="BOOL">BOOL</SelectItem>
                           <SelectItem value="WORD">WORD</SelectItem>
                           <SelectItem value="UDINT">UDINT</SelectItem>
@@ -414,6 +494,82 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
                           selectedBits={Array.from(selectedBits)}
                           onBitToggle={(bit) => toggleBit(originalIndex, bit)}
                         />
+                      </td>
+                    </tr>
+                  )}
+                  {/* Expandable Modified Channel Interface */}
+                  {isModifiedChannelEntry && isExpanded && (
+                    <tr data-testid={`row-expanded-modified-${originalIndex}`}>
+                      <td colSpan={5} className="px-4 py-0 bg-blue-50 dark:bg-blue-900/20">
+                        <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded border-l-4 border-blue-500">
+                          <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+                            Modified Channel Configuration - Base: {mapping.plc_reg_add.split('.')[0]}
+                          </h4>
+                          <div className="space-y-4">
+                            {/* Bit Selection Grid */}
+                            <div className="space-y-1">
+                              <div className="text-xs text-blue-700 dark:text-blue-300 mb-2">Select Required Bits:</div>
+                              {/* Top row: bits 15-8 */}
+                              <div className="flex space-x-1">
+                                <span className="text-xs font-mono text-muted-foreground w-8">15</span>
+                                {Array.from({ length: 8 }, (_, i) => {
+                                  const bitIndex = 15 - i;
+                                  const isSelected = modifiedBits.has(bitIndex);
+                                  return (
+                                    <button
+                                      key={bitIndex}
+                                      onClick={() => toggleModifiedChannelBit(originalIndex, bitIndex)}
+                                      className={`w-6 h-6 text-xs font-mono border rounded ${
+                                        isSelected 
+                                          ? 'bg-blue-500 text-white border-blue-600' 
+                                          : 'bg-gray-100 dark:bg-gray-700 text-gray-500 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                      }`}
+                                      data-testid={`modified-bit-${mapping.plc_reg_add}-${bitIndex}`}
+                                    >
+                                      {bitIndex}
+                                    </button>
+                                  );
+                                })}
+                                <span className="text-xs font-mono text-muted-foreground w-8">8</span>
+                              </div>
+                              {/* Bottom row: bits 7-0 */}
+                              <div className="flex space-x-1">
+                                <span className="text-xs font-mono text-muted-foreground w-8">7</span>
+                                {Array.from({ length: 8 }, (_, i) => {
+                                  const bitIndex = 7 - i;
+                                  const isSelected = modifiedBits.has(bitIndex);
+                                  return (
+                                    <button
+                                      key={bitIndex}
+                                      onClick={() => toggleModifiedChannelBit(originalIndex, bitIndex)}
+                                      className={`w-6 h-6 text-xs font-mono border rounded ${
+                                        isSelected 
+                                          ? 'bg-blue-500 text-white border-blue-600' 
+                                          : 'bg-gray-100 dark:bg-gray-700 text-gray-500 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                      }`}
+                                      data-testid={`modified-bit-${mapping.plc_reg_add}-${bitIndex}`}
+                                    >
+                                      {bitIndex}
+                                    </button>
+                                  );
+                                })}
+                                <span className="text-xs font-mono text-muted-foreground w-8">0</span>
+                              </div>
+                            </div>
+                            {/* Comment Box */}
+                            <div className="space-y-2">
+                              <label className="text-xs text-blue-700 dark:text-blue-300">Description/Comment:</label>
+                              <textarea
+                                value={modifiedComment}
+                                onChange={(e) => updateModifiedChannelComment(originalIndex, e.target.value)}
+                                placeholder="Enter description for this modified channel..."
+                                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-200"
+                                rows={3}
+                                data-testid={`modified-comment-${originalIndex}`}
+                              />
+                            </div>
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   )}
