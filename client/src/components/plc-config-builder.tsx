@@ -26,6 +26,7 @@ export function PlcConfigBuilder() {
   // Configuration state
   const [configFileName, setConfigFileName] = useState("plc_config.json");
   const [configDescription, setConfigDescription] = useState("");
+  const [plcNo, setPlcNo] = useState(1);
   const [plcName, setPlcName] = useState("PLC1");
   const [plcIp, setPlcIp] = useState("192.168.2.2");
   const [opcuaUrl, setOpcuaUrl] = useState("opc.tcp://192.168.1.20:4840");
@@ -233,6 +234,7 @@ export function PlcConfigBuilder() {
           <FileUploadCard 
             onFileProcessed={handleFileProcessed}
             onClose={() => setShowUploadCard(false)}
+            plcNo={plcNo}
           />
         )}
 
@@ -242,7 +244,23 @@ export function PlcConfigBuilder() {
             <CardTitle data-testid="text-plc-config-title">{t('plcConfigTitle')}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <Label htmlFor="plcNo" data-testid="label-plc-no">
+                  {t('plcNoLabel')}
+                </Label>
+                <Input
+                  id="plcNo"
+                  type="number"
+                  min="1"
+                  value={plcNo}
+                  onChange={(e) => setPlcNo(parseInt(e.target.value) || 1)}
+                  className={`mt-1 transition-all duration-200 ${
+                    plcNo === 1 ? 'text-muted-foreground font-light' : 'text-foreground font-semibold'
+                  }`}
+                  data-testid="input-plc-no"
+                />
+              </div>
               <div>
                 <Label htmlFor="plcName" data-testid="label-plc-name">
                   {t('plcNameLabel')}

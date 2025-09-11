@@ -13,9 +13,11 @@ import Encoding from "encoding-japanese";
 
 interface FileUploadCardProps {
   onFileProcessed: (mappings: AddressMapping[]) => void;
+  onClose?: () => void;
+  plcNo?: number;
 }
 
-export function FileUploadCard({ onFileProcessed }: FileUploadCardProps) {
+export function FileUploadCard({ onFileProcessed, onClose, plcNo = 1 }: FileUploadCardProps) {
   const { t, language } = useLanguage();
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
@@ -108,8 +110,8 @@ export function FileUploadCard({ onFileProcessed }: FileUploadCardProps) {
                 cell?.toLowerCase().includes('address')
               ) ? 1 : 0;
 
-              // Use the new PLC parser
-              const result = parseCSVData(data.slice(startIndex), 1);
+              // Use the new PLC parser with the specified PLC number
+              const result = parseCSVData(data.slice(startIndex), plcNo);
               setParseResult(result);
               setShowPreview(true);
 
@@ -195,6 +197,7 @@ export function FileUploadCard({ onFileProcessed }: FileUploadCardProps) {
       onFileProcessed(parseResult.addressMappings);
       setParseResult(null);
       setShowPreview(false);
+      onClose?.(); // Close the upload card after import
       toast({
         title: "Import Successful",
         description: `${parseResult.stats.validRecords} address mappings have been imported`,
