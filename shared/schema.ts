@@ -8,6 +8,7 @@ export const addressMappingSchema = z.object({
   data_type: z.enum(["int16", "int32", "float32", "bool", "string", "CHANNEL", "BOOL", "WORD", "UDINT", "DWORD", "INT", "REAL", "LREAL", "modified channel"]),
   opcua_reg_add: z.string().min(1, "OPC UA register address is required"),
   description: z.string().optional(),
+  bit_list: z.array(z.number()).optional(), // Array of bit positions for efficient highlighting
   metadata: z.object({
     bit_count: z.number(),
     bit_mappings: z.record(z.object({

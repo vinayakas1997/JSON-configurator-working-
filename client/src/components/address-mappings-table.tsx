@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLanguage } from "@/hooks/use-language";
+import { generateOpcuaName } from "@/lib/plc-parser";
 import type { AddressMapping } from "@shared/schema";
 
 interface AddressMappingsTableProps {
@@ -115,32 +116,44 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
     return mapping.plc_reg_add.startsWith(baseAddress + '.');
   };
 
-  // Helper function to extract used bits from related BOOL entries
+  // Efficient helper using bit_list attribute instead of parsing addresses
   const extractUsedBits = (channelAddress: string): number[] => {
-    // For BOOL CHANNEL entries, find all related individual BOOL entries in the mappings
     const baseAddress = channelAddress.split('.')[0];
-    const usedBits: number[] = [];
     
+    // Find the mapping that corresponds to this channel address
+    const channelMapping = mappings.find(mapping => 
+      mapping.plc_reg_add === baseAddress && (isBoolChannel(mapping) || isModifiedChannel(mapping))
+    );
+    
+    if (channelMapping && channelMapping.bit_list && Array.isArray(channelMapping.bit_list)) {
+      // Use efficient bit_list attribute - no parsing needed!
+      return channelMapping.bit_list.filter(bit => bit >= 0 && bit <= 15);
+    }
+    
+    // Fallback: extract from related BOOL entries for backward compatibility
+    const usedBits: number[] = [];
     mappings.forEach((mapping) => {
       if (mapping.data_type === 'BOOL' && mapping.plc_reg_add.startsWith(baseAddress + '.')) {
-        const bitPart = mapping.plc_reg_add.split('.')[1];
-        if (bitPart) {
-          // Apply normalization logic for manual entries (same as CSV parsing):
-          // Single digit: "1" -> "10", "2" -> "20", etc.
-          // Two digits: "01" -> "01", "13" -> "13", etc.
-          // Parse bit part directly as integer (no normalization needed)
-          const bitNumber = parseInt(bitPart);
-          if (!isNaN(bitNumber) && bitNumber >= 0 && bitNumber <= 15) {
-            usedBits.push(bitNumber);
+        if (mapping.bit_list && Array.isArray(mapping.bit_list)) {
+          // Use bit_list if available
+          usedBits.push(...mapping.bit_list.filter(bit => bit >= 0 && bit <= 15));
+        } else {
+          // Parse address as fallback
+          const bitPart = mapping.plc_reg_add.split('.')[1];
+          if (bitPart) {
+            const bitNumber = parseInt(bitPart);
+            if (!isNaN(bitNumber) && bitNumber >= 0 && bitNumber <= 15) {
+              usedBits.push(bitNumber);
+            }
           }
         }
       }
     });
     
-    return usedBits;
+    return Array.from(new Set(usedBits)); // Remove duplicates
   };
 
-  // Memoized helper to find existing bit data from boolean channels and other modified channels
+  // Efficient helper using bit_list attribute instead of reparsing addresses
   const getExistingBitData = useMemo(() => {
     const addressToBitsMap = new Map<string, { boolBits: Set<number>, modifiedBits: Set<number> }>();
     
@@ -153,34 +166,49 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
       
       const bitData = addressToBitsMap.get(mappingBaseAddress)!;
       
-      // Extract bits from boolean channel metadata
-      if (isBoolChannel(mapping) && (mapping as any).metadata?.bit_mappings) {
-        const bitMappings = (mapping as any).metadata.bit_mappings;
-        Object.values(bitMappings).forEach((bitInfo: any) => {
-          if (typeof bitInfo.bit_position === 'number' && bitInfo.bit_position >= 0 && bitInfo.bit_position <= 15) {
-            bitData.boolBits.add(bitInfo.bit_position);
+      // Use bit_list attribute for efficient bit extraction - no parsing needed!
+      if (mapping.bit_list && Array.isArray(mapping.bit_list)) {
+        mapping.bit_list.forEach((bit: number) => {
+          if (typeof bit === 'number' && bit >= 0 && bit <= 15) {
+            if (isBoolChannel(mapping)) {
+              bitData.boolBits.add(bit);
+            } else if (isModifiedChannel(mapping)) {
+              bitData.modifiedBits.add(bit);
+            } else if (mapping.data_type === 'BOOL') {
+              bitData.boolBits.add(bit);
+            }
           }
         });
       }
       
-      // Extract bits from modified channel metadata
-      if (isModifiedChannel(mapping) && (mapping as any).metadata?.bit_mappings) {
-        const bitMappings = (mapping as any).metadata.bit_mappings;
-        Object.values(bitMappings).forEach((bitInfo: any) => {
-          if (typeof bitInfo.bit_position === 'number' && bitInfo.bit_position >= 0 && bitInfo.bit_position <= 15) {
-            bitData.modifiedBits.add(bitInfo.bit_position);
-          }
-        });
-      }
-      
-      // Extract bits from individual BOOL entries
-      if (mapping.data_type === 'BOOL' && mapping.plc_reg_add.includes('.')) {
-        const bitPart = mapping.plc_reg_add.split('.')[1];
-        if (bitPart) {
-          // Parse bit part directly as integer (no normalization needed)
-          const bitNumber = parseInt(bitPart);
-          if (!isNaN(bitNumber) && bitNumber >= 0 && bitNumber <= 15) {
-            bitData.boolBits.add(bitNumber);
+      // Fallback: Extract bits from metadata (for backward compatibility)
+      if (!mapping.bit_list) {
+        if (isBoolChannel(mapping) && (mapping as any).metadata?.bit_mappings) {
+          const bitMappings = (mapping as any).metadata.bit_mappings;
+          Object.values(bitMappings).forEach((bitInfo: any) => {
+            if (typeof bitInfo.bit_position === 'number' && bitInfo.bit_position >= 0 && bitInfo.bit_position <= 15) {
+              bitData.boolBits.add(bitInfo.bit_position);
+            }
+          });
+        }
+        
+        if (isModifiedChannel(mapping) && (mapping as any).metadata?.bit_mappings) {
+          const bitMappings = (mapping as any).metadata.bit_mappings;
+          Object.values(bitMappings).forEach((bitInfo: any) => {
+            if (typeof bitInfo.bit_position === 'number' && bitInfo.bit_position >= 0 && bitInfo.bit_position <= 15) {
+              bitData.modifiedBits.add(bitInfo.bit_position);
+            }
+          });
+        }
+        
+        // Extract bits from individual BOOL entries (parsing fallback)
+        if (mapping.data_type === 'BOOL' && mapping.plc_reg_add.includes('.')) {
+          const bitPart = mapping.plc_reg_add.split('.')[1];
+          if (bitPart) {
+            const bitNumber = parseInt(bitPart);
+            if (!isNaN(bitNumber) && bitNumber >= 0 && bitNumber <= 15) {
+              bitData.boolBits.add(bitNumber);
+            }
           }
         }
       }
@@ -189,6 +217,18 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
     return addressToBitsMap;
   }, [mappings]);
   
+  // Helper to count total selected bits in all modified channels
+  const getTotalModifiedChannelBits = (): number => {
+    let totalBits = 0;
+    mappings.forEach((mapping, index) => {
+      if (isModifiedChannel(mapping) && selectedRegisters.has(index)) {
+        const selectedBits = modifiedChannelBits.get(index) || new Set<number>();
+        totalBits += selectedBits.size;
+      }
+    });
+    return totalBits;
+  };
+
   // Helper to get existing bits for a specific address excluding current mapping
   const getExistingBitsForAddress = (baseAddress: string, currentIndex: number): { boolBits: number[], modifiedBits: number[] } => {
     const bitData = getExistingBitData.get(baseAddress);
@@ -196,16 +236,22 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
       return { boolBits: [], modifiedBits: [] };
     }
     
-    // Get current mapping's selected bits to exclude from modified bits
+    // Get current mapping's selected bits to exclude from modified bits (using bit_list)
     const currentMapping = mappings[currentIndex];
     const currentModifiedBits = new Set<number>();
-    if (isModifiedChannel(currentMapping) && (currentMapping as any).metadata?.bit_mappings) {
-      const bitMappings = (currentMapping as any).metadata.bit_mappings;
-      Object.values(bitMappings).forEach((bitInfo: any) => {
-        if (typeof bitInfo.bit_position === 'number') {
-          currentModifiedBits.add(bitInfo.bit_position);
-        }
-      });
+    if (isModifiedChannel(currentMapping)) {
+      if (currentMapping.bit_list && Array.isArray(currentMapping.bit_list)) {
+        // Use efficient bit_list attribute
+        currentMapping.bit_list.forEach((bit: number) => currentModifiedBits.add(bit));
+      } else if ((currentMapping as any).metadata?.bit_mappings) {
+        // Fallback to metadata parsing
+        const bitMappings = (currentMapping as any).metadata.bit_mappings;
+        Object.values(bitMappings).forEach((bitInfo: any) => {
+          if (typeof bitInfo.bit_position === 'number') {
+            currentModifiedBits.add(bitInfo.bit_position);
+          }
+        });
+      }
     }
     
     // Filter out current mapping's bits from modified bits
@@ -465,9 +511,37 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
   };
 
   const updateMapping = (index: number, field: keyof AddressMapping, value: string) => {
-    const updatedMappings = mappings.map((mapping, i) => 
-      i === index ? { ...mapping, [field]: value } : mapping
-    );
+    const updatedMappings = mappings.map((mapping, i) => {
+      if (i === index) {
+        const updatedMapping = { ...mapping, [field]: value };
+        
+        // Auto-generate OPC UA register when PLC address or data type changes
+        if (field === 'plc_reg_add' || field === 'data_type') {
+          const plcAddress = field === 'plc_reg_add' ? value : mapping.plc_reg_add;
+          const dataType = field === 'data_type' ? value : mapping.data_type;
+          
+          if (plcAddress && dataType) {
+            const plcNumber = 1; // Default PLC number, could be made configurable
+            const baseAddr = plcAddress.split('.')[0];
+            let newOpcuaName: string;
+            
+            if (dataType === 'CHANNEL' || dataType === 'modified channel') {
+              newOpcuaName = generateOpcuaName(baseAddr, 'CHANNEL', undefined, false, plcNumber);
+            } else if (dataType === 'BOOL' && plcAddress.includes('.')) {
+              const bitPosition = plcAddress.split('.')[1];
+              newOpcuaName = generateOpcuaName(baseAddr, 'BOOL', bitPosition, false, plcNumber);
+            } else {
+              newOpcuaName = generateOpcuaName(baseAddr, dataType, undefined, false, plcNumber);
+            }
+            
+            updatedMapping.opcua_reg_add = newOpcuaName;
+          }
+        }
+        
+        return updatedMapping;
+      }
+      return mapping;
+    });
     onMappingsChange(updatedMappings);
   };
 
@@ -506,7 +580,7 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
       {/* Dynamic variable count display */}
       <div className="mb-4 px-2">
         <span className="text-sm font-medium text-muted-foreground" data-testid="text-total-selected">
-          total selected variable = {selectedRegisters.size}
+          total selected variable = {selectedRegisters.size + getTotalModifiedChannelBits()}
         </span>
       </div>
       

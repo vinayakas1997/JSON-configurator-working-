@@ -262,13 +262,17 @@ export function parseCSVData(csvData: string[][], plcNumber: number = 1): ParseR
       
       // Create bit metadata following Python approach
       const bit_metadata: Record<string, any> = {};
+      const bit_positions: number[] = [];
+      
       for (const bit of bits) {
         const bit_key = `bit_${bit.bitPosition}`; // Use the normalized bit position
+        const bitPos = parseInt(bit.bitPosition);
         bit_metadata[bit_key] = {
           address: bit.normalizedAddress,
           description: bit.description,
-          bit_position: parseInt(bit.bitPosition)
+          bit_position: bitPos
         };
+        bit_positions.push(bitPos);
       }
       
       addressMappings.push({
@@ -276,6 +280,7 @@ export function parseCSVData(csvData: string[][], plcNumber: number = 1): ParseR
         data_type: 'CHANNEL', // Use CHANNEL for grouped boolean channels
         opcua_reg_add: opcuaName,
         description: `Boolean channel for address ${baseAddress}`,
+        bit_list: bit_positions.sort((a, b) => a - b), // Store bit positions for efficient highlighting
         metadata: {
           bit_count: bits.length,
           bit_mappings: bit_metadata
@@ -296,7 +301,8 @@ export function parseCSVData(csvData: string[][], plcNumber: number = 1): ParseR
         plc_reg_add: bit.normalizedAddress,
         data_type: 'BOOL', // Keep original BOOL type
         opcua_reg_add: opcuaName,
-        description: bit.description
+        description: bit.description,
+        bit_list: [parseInt(bit.bitPosition)] // Store single bit position for efficient highlighting
       });
     }
   }
