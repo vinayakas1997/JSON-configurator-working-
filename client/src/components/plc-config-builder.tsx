@@ -233,7 +233,6 @@ export function PlcConfigBuilder() {
         {showUploadCard && (
           <FileUploadCard 
             onFileProcessed={handleFileProcessed}
-            onClose={() => setShowUploadCard(false)}
             plcNo={plcNo}
           />
         )}
