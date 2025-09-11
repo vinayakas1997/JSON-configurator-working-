@@ -16,7 +16,7 @@ interface FileUploadCardProps {
 }
 
 export function FileUploadCard({ onFileProcessed }: FileUploadCardProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -297,7 +297,7 @@ export function FileUploadCard({ onFileProcessed }: FileUploadCardProps) {
               <div className="text-center p-4 bg-muted/50 rounded-lg">
                 <div className="text-2xl font-bold text-green-600" data-testid="stat-valid">{parseResult.stats.validRecords}</div>
                 <div className="text-sm text-muted-foreground leading-tight">
-                  {t('language') === 'en' ? (
+                  {language === 'en' ? (
                     <>
                       <div>After Modification</div>
                       <div>Records</div>
