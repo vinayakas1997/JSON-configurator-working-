@@ -107,6 +107,7 @@ export function PlcConfigBuilder() {
     const memoryAreaCounts = new Map<string, number>();
     const memoryAreaAddresses = new Map<string, string[]>();
     const datatypeCounts = new Map<string, number>();
+    const datatypeAddresses = new Map<string, string[]>();
     const otherDatatypes = new Set<string>();
     
     const standardDatatypes = new Set(['int16', 'int32', 'float32', 'bool', 'string', 'CHANNEL', 'BOOL', 'WORD', 'UDINT', 'DWORD', 'INT', 'REAL', 'LREAL']);
@@ -133,15 +134,19 @@ export function PlcConfigBuilder() {
       }
       memoryAreaAddresses.get(memoryArea)!.push(mapping.plc_reg_add);
       
-      // Count datatypes
+      // Count and store addresses for each datatype
       if (standardDatatypes.has(mapping.data_type)) {
         datatypeCounts.set(mapping.data_type, (datatypeCounts.get(mapping.data_type) || 0) + 1);
+        if (!datatypeAddresses.has(mapping.data_type)) {
+          datatypeAddresses.set(mapping.data_type, []);
+        }
+        datatypeAddresses.get(mapping.data_type)!.push(mapping.plc_reg_add);
       } else {
         otherDatatypes.add(mapping.data_type);
       }
     });
     
-    return { memoryAreaCounts, memoryAreaAddresses, datatypeCounts, otherDatatypes };
+    return { memoryAreaCounts, memoryAreaAddresses, datatypeCounts, datatypeAddresses, otherDatatypes };
   };
 
   const toggleMemoryArea = (area: string) => {
@@ -367,7 +372,7 @@ export function PlcConfigBuilder() {
               <CollapsibleContent>
                 <div className="p-4 border-t border-border" data-testid="content-overview">
                   {(() => {
-                    const { memoryAreaCounts, memoryAreaAddresses, datatypeCounts, otherDatatypes } = analyzeAddressMappings();
+                    const { memoryAreaCounts, memoryAreaAddresses, datatypeCounts, datatypeAddresses, otherDatatypes } = analyzeAddressMappings();
                     const standardMemoryAreas = ['I/O', 'A', 'C', 'D', 'E', 'T', 'H'];
                     
                     return (
@@ -471,12 +476,45 @@ export function PlcConfigBuilder() {
                         <div className="space-y-3" data-testid="section-datatypes">
                           <h3 className="text-lg font-semibold text-foreground">{t('datatypesFound')}</h3>
                           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                            {Array.from(datatypeCounts.entries()).map(([datatype, count]) => (
-                              <div key={datatype} className="bg-muted p-3 rounded-lg text-center">
-                                <div className="text-lg font-bold text-primary">{count}</div>
-                                <div className="text-xs text-muted-foreground uppercase">{datatype}</div>
-                              </div>
-                            ))}
+                            {Array.from(datatypeCounts.entries()).map(([datatype, count]) => {
+                              const addresses = datatypeAddresses.get(datatype) || [];
+                              return (
+                                <Collapsible key={datatype}>
+                                  <div className="flex flex-col">
+                                    <div className="bg-muted p-3 rounded-lg">
+                                      <div className="flex items-center justify-between">
+                                        <div className="text-center flex-1">
+                                          <div className="text-lg font-bold text-primary">{count}</div>
+                                          <div className="text-xs text-muted-foreground uppercase">{datatype}</div>
+                                        </div>
+                                        {count > 0 && (
+                                          <CollapsibleTrigger asChild>
+                                            <button className="p-1 hover:bg-background rounded ml-2" data-testid={`expand-datatype-${datatype}`}>
+                                              <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                                            </button>
+                                          </CollapsibleTrigger>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {count > 0 && (
+                                      <CollapsibleContent>
+                                        <div className="mt-1 p-2 bg-muted/50 rounded border-l-2 border-primary/30">
+                                          <div className="max-h-32 overflow-y-auto">
+                                            <div className="space-y-1">
+                                              {addresses.map((address, index) => (
+                                                <div key={index} className="text-xs font-mono bg-white dark:bg-gray-800 px-2 py-1 rounded border">
+                                                  {address}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </CollapsibleContent>
+                                    )}
+                                  </div>
+                                </Collapsible>
+                              );
+                            })}
                           </div>
                         </div>
 
