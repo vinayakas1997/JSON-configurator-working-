@@ -195,10 +195,9 @@ export function FileUploadCard({ onFileProcessed, onClose, plcNo = 1 }: FileUplo
   const handleImport = () => {
     if (parseResult) {
       onFileProcessed(parseResult.addressMappings);
-      setParseResult(null);
-      setShowPreview(false);
+      // Keep parseResult to maintain the statistics display
       toast({
-        title: "Import Successful",
+        title: "Import Successful", 
         description: `${parseResult.stats.validRecords} address mappings have been imported`,
       });
     }
