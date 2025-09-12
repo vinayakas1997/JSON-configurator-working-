@@ -28,10 +28,11 @@ Preferred communication style: Simple, everyday language.
 - **Development**: Hot module replacement with Vite in development mode
 
 ### Data Storage Design
-- **Primary Database**: PostgreSQL with Neon serverless driver
-- **Schema**: Two main tables - users and plc_configurations
-- **Configuration Storage**: JSON blob storage for complex PLC configuration data
-- **Fallback Storage**: In-memory storage implementation for development/testing
+- **Primary Database**: SQLite with better-sqlite3 driver for persistent storage
+- **Schema**: Two main tables - users and plc_configurations (SQLite compatible)
+- **Configuration Storage**: JSON text storage with automatic serialization/deserialization
+- **Type System**: Domain types (objects) for API/business logic, database types (strings) for storage layer
+- **Data Persistence**: All configurations survive application restarts and deployments
 
 ### Authentication & Authorization
 - **Session Management**: Express sessions with PostgreSQL storage
