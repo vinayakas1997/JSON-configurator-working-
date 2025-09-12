@@ -77,4 +77,6 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+import { SqliteStorage } from "./sqlite-storage";
+
+export const storage = new SqliteStorage();
