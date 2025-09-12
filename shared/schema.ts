@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, jsonb } from "drizzle-orm/pg-core";
+import { sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -30,17 +30,18 @@ export const configFileSchema = z.object({
   plcs: z.array(plcConfigSchema)
 });
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+// SQLite tables for the actual implementation
+export const users = sqliteTable("users", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
 });
 
-export const plcConfigurations = pgTable("plc_configurations", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+export const plcConfigurations = sqliteTable("plc_configurations", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   name: text("name").notNull(),
   description: text("description"),
-  config_data: jsonb("config_data").notNull(),
+  config_data: text("config_data").notNull(), // JSON stored as text
   created_at: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
@@ -49,15 +50,34 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: true,
 });
 
+// Database insert schema (config_data as string)
 export const insertPlcConfigSchema = createInsertSchema(plcConfigurations).omit({
   id: true,
   created_at: true,
 });
 
+// Domain insert schema (config_data as object)
+export const insertPlcConfigDomainSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().nullable().optional(),
+  config_data: configFileSchema
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
-export type PlcConfiguration = typeof plcConfigurations.$inferSelect;
+
+// Database row type (config_data is string in SQLite)
+export type PlcConfigurationRow = typeof plcConfigurations.$inferSelect;
+
+// Domain type (config_data is parsed ConfigFile object) 
+export type PlcConfiguration = Omit<PlcConfigurationRow, 'config_data'> & {
+  config_data: ConfigFile;
+};
+
+// Database insert type (string)
 export type InsertPlcConfiguration = z.infer<typeof insertPlcConfigSchema>;
+// Domain insert type (object)
+export type InsertPlcConfigurationDomain = z.infer<typeof insertPlcConfigDomainSchema>;
 export type AddressMapping = z.infer<typeof addressMappingSchema>;
 export type PlcConfig = z.infer<typeof plcConfigSchema>;
 export type ConfigFile = z.infer<typeof configFileSchema>;

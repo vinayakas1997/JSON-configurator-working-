@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertPlcConfigSchema, configFileSchema } from "@shared/schema";
+import { insertPlcConfigDomainSchema, configFileSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -35,12 +35,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a new PLC configuration
   app.post("/api/plc-configurations", async (req, res) => {
     try {
-      const validatedData = insertPlcConfigSchema.parse(req.body);
+      const validatedData = insertPlcConfigDomainSchema.parse(req.body);
       
-      // Validate the config_data structure
-      if (validatedData.config_data) {
-        configFileSchema.parse(validatedData.config_data);
-      }
+      // config_data validation is already included in insertPlcConfigDomainSchema
       
       const configuration = await storage.createPlcConfiguration(validatedData);
       res.status(201).json(configuration);
@@ -59,12 +56,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/plc-configurations/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const validatedData = insertPlcConfigSchema.partial().parse(req.body);
+      const validatedData = insertPlcConfigDomainSchema.partial().parse(req.body);
       
-      // Validate the config_data structure if provided
-      if (validatedData.config_data) {
-        configFileSchema.parse(validatedData.config_data);
-      }
+      // config_data validation is already included in insertPlcConfigDomainSchema
       
       const configuration = await storage.updatePlcConfiguration(id, validatedData);
       

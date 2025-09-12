@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type PlcConfiguration, type InsertPlcConfiguration } from "@shared/schema";
+import { type User, type InsertUser, type PlcConfiguration, type InsertPlcConfigurationDomain } from "@shared/schema";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -7,8 +7,8 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   getPlcConfiguration(id: string): Promise<PlcConfiguration | undefined>;
   getAllPlcConfigurations(): Promise<PlcConfiguration[]>;
-  createPlcConfiguration(config: InsertPlcConfiguration): Promise<PlcConfiguration>;
-  updatePlcConfiguration(id: string, config: Partial<InsertPlcConfiguration>): Promise<PlcConfiguration | undefined>;
+  createPlcConfiguration(config: InsertPlcConfigurationDomain): Promise<PlcConfiguration>;
+  updatePlcConfiguration(id: string, config: Partial<InsertPlcConfigurationDomain>): Promise<PlcConfiguration | undefined>;
   deletePlcConfiguration(id: string): Promise<boolean>;
 }
 
@@ -46,7 +46,7 @@ export class MemStorage implements IStorage {
     return Array.from(this.plcConfigurations.values());
   }
 
-  async createPlcConfiguration(insertConfig: InsertPlcConfiguration): Promise<PlcConfiguration> {
+  async createPlcConfiguration(insertConfig: InsertPlcConfigurationDomain): Promise<PlcConfiguration> {
     const id = randomUUID();
     const config: PlcConfiguration = {
       ...insertConfig,
@@ -58,7 +58,7 @@ export class MemStorage implements IStorage {
     return config;
   }
 
-  async updatePlcConfiguration(id: string, updateData: Partial<InsertPlcConfiguration>): Promise<PlcConfiguration | undefined> {
+  async updatePlcConfiguration(id: string, updateData: Partial<InsertPlcConfigurationDomain>): Promise<PlcConfiguration | undefined> {
     const existingConfig = this.plcConfigurations.get(id);
     if (!existingConfig) {
       return undefined;

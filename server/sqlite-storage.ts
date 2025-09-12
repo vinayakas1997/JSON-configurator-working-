@@ -1,8 +1,9 @@
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { eq } from "drizzle-orm";
-import { users, plcConfigurations, type User, type PlcConfiguration, type InsertUser, type InsertPlcConfiguration } from "./sqlite-schema";
+import { eq, sql } from "drizzle-orm";
+import { users, plcConfigurations, type User, type PlcConfiguration, type InsertUser, type InsertPlcConfigurationDomain } from "../shared/schema";
 import { type IStorage } from "./storage";
+import { configFileSchema } from "../shared/schema";
 import { randomUUID } from "crypto";
 
 export class SqliteStorage implements IStorage {
@@ -16,24 +17,30 @@ export class SqliteStorage implements IStorage {
   }
 
   private initializeDatabase() {
-    // Create tables if they don't exist
-    this.sqlite.exec(`
-      CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        username TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL
-      )
-    `);
+    // Use Drizzle to create tables instead of raw SQL
+    try {
+      // Create users table
+      this.db.run(sql`
+        CREATE TABLE IF NOT EXISTS users (
+          id TEXT PRIMARY KEY,
+          username TEXT NOT NULL UNIQUE,  
+          password TEXT NOT NULL
+        )
+      `);
 
-    this.sqlite.exec(`
-      CREATE TABLE IF NOT EXISTS plc_configurations (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT,
-        config_data TEXT NOT NULL,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+      // Create plc_configurations table
+      this.db.run(sql`
+        CREATE TABLE IF NOT EXISTS plc_configurations (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          description TEXT,
+          config_data TEXT NOT NULL,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+    } catch (error) {
+      console.error("Database initialization failed:", error);
+    }
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -59,11 +66,16 @@ export class SqliteStorage implements IStorage {
     const config = result[0];
     
     if (config) {
-      // Parse JSON string back to object
-      return {
-        ...config,
-        config_data: JSON.parse(config.config_data)
-      } as PlcConfiguration;
+      try {
+        // Parse JSON string back to object with error handling
+        return {
+          ...config,
+          config_data: JSON.parse(config.config_data as string)
+        } as PlcConfiguration;
+      } catch (error) {
+        console.error("Failed to parse config_data JSON:", error);
+        return undefined;
+      }
     }
     return undefined;
   }
@@ -71,14 +83,29 @@ export class SqliteStorage implements IStorage {
   async getAllPlcConfigurations(): Promise<PlcConfiguration[]> {
     const result = await this.db.select().from(plcConfigurations);
     
-    // Parse JSON strings back to objects
-    return result.map(config => ({
-      ...config,
-      config_data: JSON.parse(config.config_data)
-    })) as PlcConfiguration[];
+    // Parse JSON strings back to objects with error handling
+    return result.map(config => {
+      try {
+        return {
+          ...config,
+          config_data: JSON.parse(config.config_data as string)
+        } as PlcConfiguration;
+      } catch (error) {
+        console.error("Failed to parse config_data JSON for config", config.id, error);
+        return null;
+      }
+    }).filter(config => config !== null) as PlcConfiguration[];
   }
 
-  async createPlcConfiguration(config: InsertPlcConfiguration): Promise<PlcConfiguration> {
+  async createPlcConfiguration(config: InsertPlcConfigurationDomain): Promise<PlcConfiguration> {
+    // Validate config_data before storing
+    try {
+      configFileSchema.parse(config.config_data);
+    } catch (validationError) {
+      console.error("Invalid config_data provided:", validationError);
+      throw new Error("Invalid configuration data");
+    }
+
     const id = randomUUID();
     const created_at = new Date().toISOString();
     
@@ -99,23 +126,50 @@ export class SqliteStorage implements IStorage {
     } as PlcConfiguration;
   }
 
-  async updatePlcConfiguration(id: string, updateData: Partial<InsertPlcConfiguration>): Promise<PlcConfiguration | undefined> {
-    // Convert config_data to JSON string if present
-    const updateToApply = {
-      ...updateData,
-      ...(updateData.config_data && { config_data: JSON.stringify(updateData.config_data) })
-    };
+  async updatePlcConfiguration(id: string, updateData: Partial<InsertPlcConfigurationDomain>): Promise<PlcConfiguration | undefined> {
+    try {
+      // Check if any fields are provided
+      if (Object.keys(updateData).length === 0) {
+        return this.getPlcConfiguration(id);
+      }
 
-    await this.db.update(plcConfigurations)
-      .set(updateToApply)
-      .where(eq(plcConfigurations.id, id));
+      // Build update object only with provided keys
+      const updateToApply: any = {};
+      if (updateData.name !== undefined) updateToApply.name = updateData.name;
+      if (updateData.description !== undefined) updateToApply.description = updateData.description;
+      if (updateData.config_data !== undefined) {
+        // Validate config_data before storing
+        try {
+          configFileSchema.parse(updateData.config_data);
+          updateToApply.config_data = JSON.stringify(updateData.config_data);
+        } catch (validationError) {
+          console.error("Invalid config_data provided:", validationError);
+          return undefined;
+        }
+      }
 
-    // Return the updated configuration
-    return this.getPlcConfiguration(id);
+      await this.db.update(plcConfigurations)
+        .set(updateToApply)
+        .where(eq(plcConfigurations.id, id));
+
+      return this.getPlcConfiguration(id);
+    } catch (error) {
+      console.error("Failed to update PLC configuration:", error);
+      return undefined;
+    }
   }
 
   async deletePlcConfiguration(id: string): Promise<boolean> {
-    const result = await this.db.delete(plcConfigurations).where(eq(plcConfigurations.id, id));
-    return (result as any).changes > 0;
+    try {
+      // Check if record exists first
+      const existing = await this.getPlcConfiguration(id);
+      if (!existing) return false;
+
+      await this.db.delete(plcConfigurations).where(eq(plcConfigurations.id, id));
+      return true;
+    } catch (error) {
+      console.error("Failed to delete PLC configuration:", error);
+      return false;
+    }
   }
 }
