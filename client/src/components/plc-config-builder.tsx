@@ -36,6 +36,9 @@ export function PlcConfigBuilder() {
   const [plcName, setPlcName] = useState("PLC1");
   const [plcIp, setPlcIp] = useState("192.168.2.2");
   const [opcuaUrl, setOpcuaUrl] = useState("opc.tcp://192.168.1.20:4840");
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [deselectedKeys, setDeselectedKeys] = useState<Set<string>>(new Set());
+  const [registerSearchTerm, setRegisterSearchTerm] = useState("");
   const [addressMappings, setAddressMappings] = useState<AddressMapping[]>([
     { plc_reg_add: "2.01", data_type: "BOOL", opcua_reg_add: "BOOL_VAR01" },
     { plc_reg_add: "C0001", data_type: "WORD", opcua_reg_add: "INT_VAR01" }
@@ -243,37 +246,66 @@ export function PlcConfigBuilder() {
     setSidebarOpen(!sidebarOpen);
   };
 
-  // Save session handler
+  // Save session handler with auto-save (no prompts)
   const handleSaveSession = async () => {
-    const sessionName = prompt("Enter a name for this session:");
-    if (!sessionName || sessionName.trim() === "") return;
-    
-    const sessionDescription = prompt("Enter a description (optional):") || "";
-    
     try {
       setIsSaving(true);
       
-      // Create the configuration data
-      const configData: ConfigFile = {
+      // Create the complete configuration data including all state
+      const completeConfigData = {
         plcs: [{
           plc_name: plcName,
           plc_ip: plcIp,
           opcua_url: opcuaUrl,
           address_mappings: addressMappings
-        }]
+        }],
+        // Additional state data for full restoration
+        plc_no: plcNo,
+        config_file_name: configFileName,
+        config_description: configDescription,
+        selected_memory_areas: Array.from(selectedMemoryAreas),
+        selected_registers: Array.from(selectedRegisters),
+        deselected_keys: Array.from(deselectedKeys),
+        parse_result: parseResult
       };
 
-      const response = await fetch('/api/plc-configurations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: sessionName.trim(),
-          description: sessionDescription.trim() || null,
-          config_data: configData
-        })
-      });
+      let response;
+      let sessionName;
+      
+      if (currentSessionId) {
+        // Update existing session
+        sessionName = configFileName || plcName;
+        response = await fetch(`/api/plc-configurations/${currentSessionId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: sessionName,
+            description: configDescription || null,
+            config_data: completeConfigData
+          })
+        });
+      } else {
+        // Create new session
+        sessionName = configFileName || plcName || 'New Configuration';
+        response = await fetch('/api/plc-configurations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: sessionName,
+            description: configDescription || null,
+            config_data: completeConfigData
+          })
+        });
+        
+        if (response.ok) {
+          const newSession = await response.json();
+          setCurrentSessionId(newSession.id);
+        }
+      }
       
       if (!response.ok) {
         throw new Error('Failed to save session');
@@ -297,25 +329,45 @@ export function PlcConfigBuilder() {
     }
   };
 
-  // Load session handler
+  // Load session handler with complete state restoration
   const handleLoadSession = async (sessionId: string) => {
     try {
       const response = await fetch(`/api/plc-configurations/${sessionId}`);
       if (!response.ok) throw new Error('Failed to load session');
       
       const session: PlcConfiguration = await response.json();
-      const configData = session.config_data as ConfigFile;
+      const configData = session.config_data as any; // Use any for extended structure
       
       if (configData.plcs && configData.plcs.length > 0) {
         const plcConfig = configData.plcs[0];
         
-        // Restore configuration state
+        // Restore basic configuration state
         setPlcName(plcConfig.plc_name);
         setPlcIp(plcConfig.plc_ip);
         setOpcuaUrl(plcConfig.opcua_url);
         setAddressMappings(plcConfig.address_mappings);
         setConfigFileName(session.name);
         setConfigDescription(session.description || "");
+        
+        // Restore extended state if available
+        if (configData.plc_no !== undefined) {
+          setPlcNo(configData.plc_no);
+        }
+        if (configData.selected_memory_areas) {
+          setSelectedMemoryAreas(new Set(configData.selected_memory_areas));
+        }
+        if (configData.selected_registers) {
+          setSelectedRegisters(new Set(configData.selected_registers));
+        }
+        if (configData.deselected_keys) {
+          setDeselectedKeys(new Set(configData.deselected_keys));
+        }
+        if (configData.parse_result) {
+          setParseResult(configData.parse_result);
+        }
+        
+        // Set current session ID for future saves
+        setCurrentSessionId(sessionId);
         
         toast({
           title: "Session Loaded",
@@ -345,6 +397,11 @@ export function PlcConfigBuilder() {
       setConfigFileName("plc_config");
       setConfigDescription("");
       setPlcNo(1);
+      setCurrentSessionId(null); // Clear current session ID
+      setSelectedMemoryAreas(new Set(['I/O', 'A', 'C', 'D', 'E', 'T', 'H']));
+      setSelectedRegisters(new Set());
+      setDeselectedKeys(new Set());
+      setParseResult(null);
       
       toast({
         title: "New Session",
@@ -903,12 +960,27 @@ export function PlcConfigBuilder() {
                     </Button>
                   </div>
                   
+                  {/* Register Search */}
+                  <div className="mb-4">
+                    <Input
+                      type="text"
+                      placeholder='Search registers by address, OPC UA name, or description...'
+                      value={registerSearchTerm}
+                      onChange={(e) => setRegisterSearchTerm(e.target.value)}
+                      className="max-w-md"
+                      data-testid="input-register-search"
+                    />
+                  </div>
+                  
                   <AddressMappingsTable 
                     mappings={addressMappings}
                     onMappingsChange={setAddressMappings}
                     selectedMemoryAreas={selectedMemoryAreas}
                     onSelectedRegistersChange={setSelectedRegisters}
                     plcNo={plcNo}
+                    searchTerm={registerSearchTerm}
+                    deselectedKeys={deselectedKeys}
+                    onDeselectedKeysChange={setDeselectedKeys}
                   />
                 </div>
               </CollapsibleContent>

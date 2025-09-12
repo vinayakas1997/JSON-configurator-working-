@@ -1,11 +1,14 @@
 import { useState, useEffect, useMemo, Fragment } from "react";
-import { Trash2, Plus, ChevronDown, ChevronRight } from "lucide-react";
+import { Trash2, Plus, ChevronDown, ChevronRight, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useLanguage } from "@/hooks/use-language";
+import { useToast } from "@/hooks/use-toast";
 import { generateOpcuaName } from "@/lib/plc-parser";
+import Papa from "papaparse";
 import type { AddressMapping } from "@shared/schema";
 
 interface AddressMappingsTableProps {
@@ -14,6 +17,9 @@ interface AddressMappingsTableProps {
   selectedMemoryAreas?: Set<string>;
   onSelectedRegistersChange?: (selectedRegisters: Set<number>) => void;
   plcNo?: number | string;
+  searchTerm?: string;
+  deselectedKeys?: Set<string>;
+  onDeselectedKeysChange?: (keys: Set<string>) => void;
 }
 
 // 16-bit grid component for boolean channel visualization
@@ -87,14 +93,20 @@ function BooleanChannelGrid({
   );
 }
 
-export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemoryAreas = new Set(), onSelectedRegistersChange, plcNo = 1 }: AddressMappingsTableProps) {
+export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemoryAreas = new Set(), onSelectedRegistersChange, plcNo = 1, searchTerm = "", deselectedKeys = new Set(), onDeselectedKeysChange }: AddressMappingsTableProps) {
   const { t } = useLanguage();
+  const { toast } = useToast();
   
   // State for tracking selected registers (initially all selected)
   const [selectedRegisters, setSelectedRegisters] = useState<Set<number>>(new Set());
   const [expandedBoolChannels, setExpandedBoolChannels] = useState<Set<number>>(new Set());
   const [modifiedChannelBits, setModifiedChannelBits] = useState<Map<number, Set<number>>>(new Map());
   const [modifiedChannelComments, setModifiedChannelComments] = useState<Map<number, string>>(new Map());
+  
+  // Group deselect states
+  const [groupDeselectExpanded, setGroupDeselectExpanded] = useState<boolean>(false);
+  const [manualDeselectInput, setManualDeselectInput] = useState<string>("");
+  const [csvParsedCount, setCsvParsedCount] = useState<number>(0);
 
   // Helper function to identify BOOL CHANNEL entries
   const isBoolChannel = (mapping: AddressMapping) => {
@@ -274,16 +286,46 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
     return firstChar;
   };
 
-  // Create filtered visible mappings based on selected memory areas
+  // Create filtered and searched visible mappings
   const visibleMappings = useMemo(() => {
-    return mappings.map((mapping, originalIndex) => ({ mapping, originalIndex }))
+    const filteredMappings = mappings.map((mapping, originalIndex) => ({ mapping, originalIndex }))
       .filter(({ mapping }) => {
         // Always show empty addresses (new mappings)
         if (!mapping.plc_reg_add || mapping.plc_reg_add.trim() === '') return true;
         const memoryArea = getMemoryAreaFromMapping(mapping);
         return selectedMemoryAreas.has(memoryArea);
       });
-  }, [mappings, selectedMemoryAreas]);
+
+    // Apply search filtering if searchTerm exists
+    if (!searchTerm || searchTerm.trim() === '') {
+      return filteredMappings;
+    }
+
+    const searchTermLower = searchTerm.toLowerCase();
+    const matchingMappings: Array<{ mapping: AddressMapping; originalIndex: number; isMatch: boolean }> = [];
+
+    filteredMappings.forEach(({ mapping, originalIndex }) => {
+      const plcRegAdd = mapping.plc_reg_add.toLowerCase();
+      const opcuaRegAdd = mapping.opcua_reg_add.toLowerCase();
+      const description = (mapping.description || '').toLowerCase();
+      
+      const isMatch = plcRegAdd.includes(searchTermLower) || 
+                      opcuaRegAdd.includes(searchTermLower) || 
+                      description.includes(searchTermLower);
+      
+      matchingMappings.push({ mapping, originalIndex, isMatch });
+    });
+
+    // Sort: matches first, then non-matches
+    matchingMappings.sort((a, b) => {
+      if (a.isMatch && !b.isMatch) return -1;
+      if (!a.isMatch && b.isMatch) return 1;
+      return 0;
+    });
+
+    // Return in the original format
+    return matchingMappings.map(({ mapping, originalIndex }) => ({ mapping, originalIndex }));
+  }, [mappings, selectedMemoryAreas, searchTerm]);
 
   // Initialize registers as selected only on first render
   useEffect(() => {
@@ -291,6 +333,13 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
     // Only initialize if selectedRegisters is empty to preserve user selections
     setSelectedRegisters(prev => prev.size === 0 ? visibleIndices : prev);
   }, [visibleMappings.length]); // Only depend on length changes, not content changes
+
+  // Sync deselectedKeys with selectedRegisters whenever mappings or deselectedKeys change
+  useEffect(() => {
+    if (deselectedKeys.size > 0) {
+      updateSelectedRegistersFromDeselected(deselectedKeys);
+    }
+  }, [mappings, deselectedKeys]);
 
   // Notify parent when selectedRegisters changes
   useEffect(() => {
@@ -511,6 +560,126 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
     setSelectedRegisters(updatedSelectedRegisters);
   };
 
+  // Group deselect handlers
+  const handleCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+      complete: (results) => {
+        try {
+          const registers: string[] = [];
+          const data = results.data as string[][];
+          
+          data.forEach((row) => {
+            if (row && row.length > 0 && row[0] && row[0].trim()) {
+              const register = row[0].trim();
+              if (register) {
+                registers.push(register);
+              }
+            }
+          });
+          
+          setCsvParsedCount(registers.length);
+          
+          if (registers.length > 0) {
+            toast({
+              title: "CSV Parsed",
+              description: `Found ${registers.length} registers for deselection.`,
+            });
+          }
+          
+          // Store parsed registers temporarily for bulk deselect
+          (window as any)._tempDeselectRegisters = registers;
+        } catch (error) {
+          console.error('Error parsing CSV:', error);
+          toast({
+            title: "Parse Error",
+            description: "Failed to parse the CSV file.",
+            variant: "destructive",
+          });
+        }
+      },
+      error: (error) => {
+        console.error('CSV parse error:', error);
+        toast({
+          title: "Upload Error", 
+          description: "Failed to read the CSV file.",
+          variant: "destructive",
+        });
+      },
+      header: false,
+      skipEmptyLines: true,
+    });
+  };
+
+  const handleBulkDeselect = () => {
+    const registers = (window as any)._tempDeselectRegisters as string[];
+    if (!registers || registers.length === 0) return;
+
+    const newDeselectedKeys = new Set([...Array.from(deselectedKeys), ...registers]);
+    onDeselectedKeysChange?.(newDeselectedKeys);
+    
+    // Update selectedRegisters to reflect deselection
+    updateSelectedRegistersFromDeselected(newDeselectedKeys);
+    
+    toast({
+      title: "Bulk Deselected",
+      description: `Deselected ${registers.length} registers.`,
+    });
+    
+    setCsvParsedCount(0);
+    (window as any)._tempDeselectRegisters = [];
+  };
+
+  const handleManualDeselect = () => {
+    const register = manualDeselectInput.trim();
+    if (!register) return;
+
+    const newDeselectedKeys = new Set([...Array.from(deselectedKeys), register]);
+    onDeselectedKeysChange?.(newDeselectedKeys);
+    
+    // Update selectedRegisters to reflect deselection
+    updateSelectedRegistersFromDeselected(newDeselectedKeys);
+    
+    toast({
+      title: "Register Deselected",
+      description: `Deselected register: ${register}`,
+    });
+    
+    setManualDeselectInput("");
+  };
+
+  const handleClearDeselected = () => {
+    const newDeselectedKeys = new Set<string>();
+    onDeselectedKeysChange?.(newDeselectedKeys);
+    updateSelectedRegistersFromDeselected(newDeselectedKeys);
+    
+    toast({
+      title: "Deselection Cleared",
+      description: "All registers are now selected again.",
+    });
+  };
+
+  // Helper to update selectedRegisters based on deselectedKeys
+  const updateSelectedRegistersFromDeselected = (deselectedSet: Set<string>) => {
+    const newSelectedRegisters = new Set<number>();
+    
+    mappings.forEach((mapping, index) => {
+      const baseRegister = mapping.plc_reg_add.split('.')[0];
+      const fullRegister = mapping.plc_reg_add;
+      
+      // Check if this mapping should be deselected
+      const isDeselected = deselectedSet.has(baseRegister) || deselectedSet.has(fullRegister);
+      
+      if (!isDeselected) {
+        newSelectedRegisters.add(index);
+      }
+    });
+    
+    setSelectedRegisters(newSelectedRegisters);
+  };
+
   const updateMapping = (index: number, field: keyof AddressMapping, value: string) => {
     const updatedMappings = mappings.map((mapping, i) => {
       if (i === index) {
@@ -570,14 +739,107 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
   return (
     <div data-testid="container-mappings-table">
       <div className="mb-4 flex justify-between items-center">
-        <Button 
-          onClick={addMapping} 
-          className="bg-accent text-accent-foreground hover:bg-accent/90"
-          data-testid="button-add-mapping"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          {t('addMappingText')}
-        </Button>
+        <div className="flex items-center space-x-4">
+          <Button 
+            onClick={addMapping} 
+            className="bg-accent text-accent-foreground hover:bg-accent/90"
+            data-testid="button-add-mapping"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            {t('addMappingText')}
+          </Button>
+          
+          {/* Group Deselect Section */}
+          <Collapsible open={groupDeselectExpanded} onOpenChange={setGroupDeselectExpanded}>
+            <CollapsibleTrigger asChild>
+              <Button 
+                variant="outline" 
+                className="flex items-center space-x-2"
+                data-testid="button-group-deselect-toggle"
+              >
+                <ChevronDown 
+                  className={`w-4 h-4 transition-transform ${
+                    groupDeselectExpanded ? 'rotate-180' : ''
+                  }`} 
+                />
+                <span>Group Deselect</span>
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="absolute z-10 bg-background border rounded-lg shadow-lg p-4 mt-2 min-w-80">
+              <div className="space-y-4">
+                {/* CSV Upload Section */}
+                <div>
+                  <h4 className="text-sm font-medium mb-2">CSV Upload for Bulk Deselect</h4>
+                  <div className="space-y-2">
+                    <input
+                      type="file"
+                      accept=".csv,.txt"
+                      onChange={handleCsvUpload}
+                      className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-muted file:text-muted-foreground hover:file:bg-muted/80"
+                      data-testid="input-csv-upload"
+                    />
+                    {csvParsedCount > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">
+                          Parsed {csvParsedCount} registers
+                        </span>
+                        <Button 
+                          size="sm" 
+                          variant="destructive" 
+                          onClick={handleBulkDeselect}
+                          data-testid="button-bulk-deselect"
+                        >
+                          Deselect
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Manual Deselect Section */}
+                <div>
+                  <h4 className="text-sm font-medium mb-2">Manual Register Deselect</h4>
+                  <div className="flex space-x-2">
+                    <Input
+                      type="text"
+                      placeholder="Enter register address (e.g., C0001, 2.01)..."
+                      value={manualDeselectInput}
+                      onChange={(e) => setManualDeselectInput(e.target.value)}
+                      className="flex-1"
+                      data-testid="input-manual-deselect"
+                    />
+                    <Button 
+                      size="sm" 
+                      onClick={handleManualDeselect}
+                      disabled={!manualDeselectInput.trim()}
+                      data-testid="button-manual-deselect"
+                    >
+                      Add
+                    </Button>
+                  </div>
+                </div>
+                
+                {/* Current Deselected Count */}
+                {deselectedKeys.size > 0 && (
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <span className="text-sm text-muted-foreground">
+                      {deselectedKeys.size} registers deselected
+                    </span>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={handleClearDeselected}
+                      data-testid="button-clear-deselected"
+                    >
+                      <X className="w-3 h-3 mr-1" />
+                      Clear
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
       </div>
       
       {/* Dynamic variable count display */}
