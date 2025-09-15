@@ -478,6 +478,15 @@ export function PlcConfigBuilder() {
                 <span className="text-sm font-medium text-muted-foreground" data-testid="text-session">
                   {t('sessionText')} {plcName}
                 </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleNewSession}
+                  className="bg-muted text-muted-foreground hover:bg-muted/80 border border-border px-3 py-1 text-xs font-medium rounded-md"
+                  data-testid="button-new-session-nav"
+                >
+                  +NewSession
+                </Button>
               </div>
             </div>
             
