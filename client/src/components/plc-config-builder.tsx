@@ -273,8 +273,8 @@ export function PlcConfigBuilder() {
       let sessionName;
       
       if (currentSessionId) {
-        // Update existing session
-        sessionName = configFileName || plcName;
+        // Update existing session - use PLC Name as primary identifier
+        sessionName = plcName || configFileName || 'Unnamed PLC';
         response = await fetch(`/api/plc-configurations/${currentSessionId}`, {
           method: 'PUT',
           headers: {
@@ -287,8 +287,8 @@ export function PlcConfigBuilder() {
           })
         });
       } else {
-        // Create new session
-        sessionName = configFileName || plcName || 'New Configuration';
+        // Create new session - use PLC Name as primary identifier
+        sessionName = plcName || configFileName || 'New Configuration';
         response = await fetch('/api/plc-configurations', {
           method: 'POST',
           headers: {
