@@ -315,6 +315,11 @@ export function PlcConfigBuilder() {
       const session: PlcConfiguration = await response.json();
       const configData = session.config_data as any; // Use any for extended structure
       
+      // Debug logging to check session data structure
+      console.log('Loading session data:', session);
+      console.log('Config data structure:', configData);
+      console.log('PLC No in config data:', configData.plc_no);
+      
       if (configData.plcs && configData.plcs.length > 0) {
         const plcConfig = configData.plcs[0];
         
@@ -328,7 +333,10 @@ export function PlcConfigBuilder() {
         
         // Restore extended state if available
         if (configData.plc_no !== undefined) {
+          console.log('Setting PLC No to:', configData.plc_no);
           setPlcNo(configData.plc_no);
+        } else {
+          console.log('PLC No not found in session data, configData.plc_no is:', configData.plc_no);
         }
         if (configData.selected_memory_areas) {
           setSelectedMemoryAreas(new Set(configData.selected_memory_areas));
