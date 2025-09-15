@@ -482,10 +482,11 @@ export function PlcConfigBuilder() {
                   variant="secondary"
                   size="sm"
                   onClick={handleNewSession}
-                  className="bg-muted text-muted-foreground hover:bg-muted/80 border border-border px-3 py-1 text-xs font-medium rounded-md"
+                  className="flex items-center space-x-2"
                   data-testid="button-new-session-nav"
                 >
-                  +NewSession
+                  <Plus className="w-4 h-4" />
+                  <span className="text-sm font-medium">NewSession</span>
                 </Button>
               </div>
             </div>
