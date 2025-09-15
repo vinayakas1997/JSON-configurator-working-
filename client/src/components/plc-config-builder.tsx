@@ -269,43 +269,20 @@ export function PlcConfigBuilder() {
         parse_result: parseResult
       };
 
-      let response;
-      let sessionName;
+      // Always create new session using PLC Name - never overwrite existing sessions
+      const sessionName = plcName || 'Unnamed PLC';
       
-      if (currentSessionId) {
-        // Update existing session - use PLC Name as primary identifier
-        sessionName = plcName || configFileName || 'Unnamed PLC';
-        response = await fetch(`/api/plc-configurations/${currentSessionId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            name: sessionName,
-            description: configDescription || null,
-            config_data: completeConfigData
-          })
-        });
-      } else {
-        // Create new session - use PLC Name as primary identifier
-        sessionName = plcName || configFileName || 'New Configuration';
-        response = await fetch('/api/plc-configurations', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            name: sessionName,
-            description: configDescription || null,
-            config_data: completeConfigData
-          })
-        });
-        
-        if (response.ok) {
-          const newSession = await response.json();
-          setCurrentSessionId(newSession.id);
-        }
-      }
+      const response = await fetch('/api/plc-configurations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: sessionName,
+          description: configDescription || null,
+          config_data: completeConfigData
+        })
+      });
       
       if (!response.ok) {
         throw new Error('Failed to save session');
