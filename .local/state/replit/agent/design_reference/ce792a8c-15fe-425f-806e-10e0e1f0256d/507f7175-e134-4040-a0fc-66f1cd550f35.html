@@ -1,0 +1,599 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PLC Configuration Builder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                borderRadius: {
+                    lg: "var(--radius)",
+                    md: "calc(var(--radius) - 2px)",
+                    sm: "calc(var(--radius) - 4px)",
+                },
+                colors: {
+                    background: "var(--background)",
+                    foreground: "var(--foreground)",
+                    card: {
+                        DEFAULT: "var(--card)",
+                        foreground: "var(--card-foreground)",
+                    },
+                    popover: {
+                        DEFAULT: "var(--popover)",
+                        foreground: "var(--popover-foreground)",
+                    },
+                    primary: {
+                        DEFAULT: "var(--primary)",
+                        foreground: "var(--primary-foreground)",
+                    },
+                    secondary: {
+                        DEFAULT: "var(--secondary)",
+                        foreground: "var(--secondary-foreground)",
+                    },
+                    muted: {
+                        DEFAULT: "var(--muted)",
+                        foreground: "var(--muted-foreground)",
+                    },
+                    accent: {
+                        DEFAULT: "var(--accent)",
+                        foreground: "var(--accent-foreground)",
+                    },
+                    destructive: {
+                        DEFAULT: "var(--destructive)",
+                        foreground: "var(--destructive-foreground)",
+                    },
+                    border: "var(--border)",
+                    input: "var(--input)",
+                    ring: "var(--ring)",
+                },
+                fontFamily: {
+                    sans: ["Inter", "var(--font-sans)"],
+                }
+            },
+        }
+    };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --background: hsl(210 40% 98%);
+            --foreground: hsl(222.2 84% 4.9%);
+            --card: hsl(0 0% 100%);
+            --card-foreground: hsl(222.2 84% 4.9%);
+            --popover: hsl(0 0% 100%);
+            --popover-foreground: hsl(222.2 84% 4.9%);
+            --primary: hsl(221.2 83.2% 53.3%);
+            --primary-foreground: hsl(210 40% 98%);
+            --secondary: hsl(210 40% 96%);
+            --secondary-foreground: hsl(222.2 84% 4.9%);
+            --muted: hsl(210 40% 96%);
+            --muted-foreground: hsl(215.4 16.3% 46.9%);
+            --accent: hsl(210 40% 96%);
+            --accent-foreground: hsl(222.2 84% 4.9%);
+            --destructive: hsl(0 84.2% 60.2%);
+            --destructive-foreground: hsl(210 40% 98%);
+            --border: hsl(214.3 31.8% 91.4%);
+            --input: hsl(214.3 31.8% 91.4%);
+            --ring: hsl(221.2 83.2% 53.3%);
+            --radius: 0.5rem;
+        }
+        
+        .dark {
+            --background: hsl(222.2 84% 4.9%);
+            --foreground: hsl(210 40% 98%);
+            --card: hsl(222.2 84% 4.9%);
+            --card-foreground: hsl(210 40% 98%);
+            --popover: hsl(222.2 84% 4.9%);
+            --popover-foreground: hsl(210 40% 98%);
+            --primary: hsl(217.2 91.2% 59.8%);
+            --primary-foreground: hsl(222.2 84% 4.9%);
+            --secondary: hsl(217.2 32.6% 17.5%);
+            --secondary-foreground: hsl(210 40% 98%);
+            --muted: hsl(217.2 32.6% 17.5%);
+            --muted-foreground: hsl(215 20.2% 65.1%);
+            --accent: hsl(217.2 32.6% 17.5%);
+            --accent-foreground: hsl(210 40% 98%);
+            --destructive: hsl(0 62.8% 30.6%);
+            --destructive-foreground: hsl(210 40% 98%);
+            --border: hsl(217.2 32.6% 17.5%);
+            --input: hsl(217.2 32.6% 17.5%);
+            --ring: hsl(224.3 76.3% 94.1%);
+        }
+    </style>
+</head>
+<body class="bg-background text-foreground font-sans antialiased">
+    <!-- @COMPONENT: Header -->
+    <header class="bg-card border-b border-border">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-primary text-primary-foreground p-2 rounded-lg">
+                        <i class="fas fa-microchip text-lg"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-semibold text-foreground">PLC Configuration Builder</h1>
+                        <p class="text-sm text-muted-foreground">Generate JSON configuration files for PLC systems</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button class="text-muted-foreground hover:text-foreground transition-colors">
+                        <i class="fas fa-question-circle text-lg"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+    <!-- @END_COMPONENT: Header -->
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- @COMPONENT: ConfigurationForm -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- File Configuration -->
+                <div class="bg-card rounded-lg border border-border p-6">
+                    <div class="flex items-center space-x-2 mb-4">
+                        <i class="fas fa-file-code text-primary"></i>
+                        <h2 class="text-lg font-semibold text-foreground">File Configuration</h2>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-2">Configuration File Name</label>
+                            <input type="text" 
+                                   class="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent" 
+                                   placeholder="my-plc-config.json" 
+                                   value="plc-configuration.json"
+                                   data-bind="fileName">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PLC Configuration -->
+                <div class="bg-card rounded-lg border border-border p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-2">
+                            <i class="fas fa-server text-primary"></i>
+                            <h2 class="text-lg font-semibold text-foreground">PLC Configuration</h2>
+                        </div>
+                        <button class="bg-primary text-primary-foreground px-3 py-2 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+                                data-event="click:addPLC">
+                            <i class="fas fa-plus mr-2"></i>Add PLC
+                        </button>
+                    </div>
+
+                    <!-- @MAP: plcs.map(plc => ( -->
+                    <div class="space-y-6" data-mock="true">
+                        <!-- PLC 1 -->
+                        <div class="border border-border rounded-lg p-4 bg-muted/50">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="font-medium text-foreground">PLC #1</h3>
+                                <button class="text-destructive hover:text-destructive/90 transition-colors"
+                                        data-event="click:removePLC">
+                                    <i class="fas fa-trash text-sm"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-foreground mb-1">PLC Name</label>
+                                    <input type="text" 
+                                           class="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent" 
+                                           placeholder="PLC1" 
+                                           value="PLC1"
+                                           data-bind="plc.name">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-foreground mb-1">PLC IP Address</label>
+                                    <input type="text" 
+                                           class="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent" 
+                                           placeholder="192.168.2.2" 
+                                           value="192.168.2.2"
+                                           data-bind="plc.ip">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-foreground mb-1">OPC UA URL</label>
+                                    <input type="text" 
+                                           class="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent" 
+                                           placeholder="opc.tcp://192.168.1.20:4840" 
+                                           value="opc.tcp://192.168.1.20:4840"
+                                           data-bind="plc.opcuaUrl">
+                                </div>
+                            </div>
+
+                            <!-- Address Mappings -->
+                            <div>
+                                <div class="flex items-center justify-between mb-3">
+                                    <h4 class="font-medium text-foreground">Address Mappings</h4>
+                                    <div class="flex items-center space-x-2">
+                                        <button class="text-sm text-primary hover:text-primary/80 transition-colors"
+                                                data-event="click:uploadMappings">
+                                            <i class="fas fa-upload mr-1"></i>Upload CSV/TXT
+                                        </button>
+                                        <button class="bg-secondary text-secondary-foreground px-3 py-1 rounded text-sm font-medium hover:bg-secondary/80 transition-colors"
+                                                data-event="click:addMapping">
+                                            <i class="fas fa-plus mr-1"></i>Add Row
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- File Upload Area -->
+                                <div class="mb-4 p-4 border-2 border-dashed border-border rounded-lg bg-muted/30 text-center">
+                                    <i class="fas fa-cloud-upload-alt text-2xl text-muted-foreground mb-2"></i>
+                                    <p class="text-sm text-muted-foreground mb-2">Drop CSV/TXT file here or click to browse</p>
+                                    <input type="file" accept=".csv,.txt" class="hidden" data-implementation="File upload handler">
+                                    <button class="text-primary hover:text-primary/80 text-sm font-medium">Choose File</button>
+                                </div>
+
+                                <!-- Mappings Table -->
+                                <div class="overflow-x-auto">
+                                    <table class="w-full border-collapse">
+                                        <thead>
+                                            <tr class="border-b border-border">
+                                                <th class="text-left py-2 px-3 text-sm font-medium text-foreground">PLC Reg Address</th>
+                                                <th class="text-left py-2 px-3 text-sm font-medium text-foreground">Data Type</th>
+                                                <th class="text-left py-2 px-3 text-sm font-medium text-foreground">OPC UA Reg Address</th>
+                                                <th class="w-10 py-2 px-3"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- @MAP: mappings.map(mapping => ( -->
+                                            <tr class="border-b border-border/50" data-mock="true">
+                                                <td class="py-2 px-3">
+                                                    <input type="text" 
+                                                           class="w-full px-2 py-1 border border-input rounded text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" 
+                                                           placeholder="2.01" 
+                                                           value="2.01"
+                                                           data-bind="mapping.plcRegAdd">
+                                                </td>
+                                                <td class="py-2 px-3">
+                                                    <select class="w-full px-2 py-1 border border-input rounded text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                                                            data-bind="mapping.dataType">
+                                                        <option value="int16" selected>int16</option>
+                                                        <option value="int32">int32</option>
+                                                        <option value="float32">float32</option>
+                                                        <option value="bool">bool</option>
+                                                        <option value="string">string</option>
+                                                    </select>
+                                                </td>
+                                                <td class="py-2 px-3">
+                                                    <input type="text" 
+                                                           class="w-full px-2 py-1 border border-input rounded text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" 
+                                                           placeholder="BOOL_VAR01" 
+                                                           value="BOOL_VAR01"
+                                                           data-bind="mapping.opcuaRegAdd">
+                                                </td>
+                                                <td class="py-2 px-3">
+                                                    <button class="text-destructive hover:text-destructive/90 transition-colors"
+                                                            data-event="click:removeMapping">
+                                                        <i class="fas fa-trash text-xs"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            <tr class="border-b border-border/50" data-mock="true">
+                                                <td class="py-2 px-3">
+                                                    <input type="text" 
+                                                           class="w-full px-2 py-1 border border-input rounded text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" 
+                                                           placeholder="C0001" 
+                                                           value="C0001"
+                                                           data-bind="mapping.plcRegAdd">
+                                                </td>
+                                                <td class="py-2 px-3">
+                                                    <select class="w-full px-2 py-1 border border-input rounded text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                                                            data-bind="mapping.dataType">
+                                                        <option value="int16" selected>int16</option>
+                                                        <option value="int32">int32</option>
+                                                        <option value="float32">float32</option>
+                                                        <option value="bool">bool</option>
+                                                        <option value="string">string</option>
+                                                    </select>
+                                                </td>
+                                                <td class="py-2 px-3">
+                                                    <input type="text" 
+                                                           class="w-full px-2 py-1 border border-input rounded text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" 
+                                                           placeholder="INT_VAR01" 
+                                                           value="INT_VAR01"
+                                                           data-bind="mapping.opcuaRegAdd">
+                                                </td>
+                                                <td class="py-2 px-3">
+                                                    <button class="text-destructive hover:text-destructive/90 transition-colors"
+                                                            data-event="click:removeMapping">
+                                                        <i class="fas fa-trash text-xs"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            <!-- @END_MAP )) -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- PLC 2 -->
+                        <div class="border border-border rounded-lg p-4 bg-muted/50" data-mock="true">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="font-medium text-foreground">PLC #2</h3>
+                                <button class="text-destructive hover:text-destructive/90 transition-colors"
+                                        data-event="click:removePLC">
+                                    <i class="fas fa-trash text-sm"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-foreground mb-1">PLC Name</label>
+                                    <input type="text" 
+                                           class="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent" 
+                                           placeholder="PLC2" 
+                                           value="PLC2"
+                                           data-bind="plc.name">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-foreground mb-1">PLC IP Address</label>
+                                    <input type="text" 
+                                           class="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent" 
+                                           placeholder="192.168.2.4" 
+                                           value="192.168.2.4"
+                                           data-bind="plc.ip">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-foreground mb-1">OPC UA URL</label>
+                                    <input type="text" 
+                                           class="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent" 
+                                           placeholder="opc.tcp://192.168.1.20:4840" 
+                                           value="opc.tcp://192.168.1.20:4840"
+                                           data-bind="plc.opcuaUrl">
+                                </div>
+                            </div>
+
+                            <!-- Address Mappings -->
+                            <div>
+                                <div class="flex items-center justify-between mb-3">
+                                    <h4 class="font-medium text-foreground">Address Mappings</h4>
+                                    <div class="flex items-center space-x-2">
+                                        <button class="text-sm text-primary hover:text-primary/80 transition-colors"
+                                                data-event="click:uploadMappings">
+                                            <i class="fas fa-upload mr-1"></i>Upload CSV/TXT
+                                        </button>
+                                        <button class="bg-secondary text-secondary-foreground px-3 py-1 rounded text-sm font-medium hover:bg-secondary/80 transition-colors"
+                                                data-event="click:addMapping">
+                                            <i class="fas fa-plus mr-1"></i>Add Row
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Mappings Table -->
+                                <div class="overflow-x-auto">
+                                    <table class="w-full border-collapse">
+                                        <thead>
+                                            <tr class="border-b border-border">
+                                                <th class="text-left py-2 px-3 text-sm font-medium text-foreground">PLC Reg Address</th>
+                                                <th class="text-left py-2 px-3 text-sm font-medium text-foreground">Data Type</th>
+                                                <th class="text-left py-2 px-3 text-sm font-medium text-foreground">OPC UA Reg Address</th>
+                                                <th class="w-10 py-2 px-3"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr class="border-b border-border/50" data-mock="true">
+                                                <td class="py-2 px-3">
+                                                    <input type="text" 
+                                                           class="w-full px-2 py-1 border border-input rounded text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" 
+                                                           placeholder="2.01" 
+                                                           value="2.01"
+                                                           data-bind="mapping.plcRegAdd">
+                                                </td>
+                                                <td class="py-2 px-3">
+                                                    <select class="w-full px-2 py-1 border border-input rounded text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                                                            data-bind="mapping.dataType">
+                                                        <option value="int16" selected>int16</option>
+                                                        <option value="int32">int32</option>
+                                                        <option value="float32">float32</option>
+                                                        <option value="bool">bool</option>
+                                                        <option value="string">string</option>
+                                                    </select>
+                                                </td>
+                                                <td class="py-2 px-3">
+                                                    <input type="text" 
+                                                           class="w-full px-2 py-1 border border-input rounded text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" 
+                                                           placeholder="BOOL_VAR03" 
+                                                           value="BOOL_VAR03"
+                                                           data-bind="mapping.opcuaRegAdd">
+                                                </td>
+                                                <td class="py-2 px-3">
+                                                    <button class="text-destructive hover:text-destructive/90 transition-colors"
+                                                            data-event="click:removeMapping">
+                                                        <i class="fas fa-trash text-xs"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            <tr class="border-b border-border/50" data-mock="true">
+                                                <td class="py-2 px-3">
+                                                    <input type="text" 
+                                                           class="w-full px-2 py-1 border border-input rounded text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" 
+                                                           placeholder="C0001" 
+                                                           value="C0001"
+                                                           data-bind="mapping.plcRegAdd">
+                                                </td>
+                                                <td class="py-2 px-3">
+                                                    <select class="w-full px-2 py-1 border border-input rounded text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                                                            data-bind="mapping.dataType">
+                                                        <option value="int16" selected>int16</option>
+                                                        <option value="int32">int32</option>
+                                                        <option value="float32">float32</option>
+                                                        <option value="bool">bool</option>
+                                                        <option value="string">string</option>
+                                                    </select>
+                                                </td>
+                                                <td class="py-2 px-3">
+                                                    <input type="text" 
+                                                           class="w-full px-2 py-1 border border-input rounded text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" 
+                                                           placeholder="INT_VAR04" 
+                                                           value="INT_VAR04"
+                                                           data-bind="mapping.opcuaRegAdd">
+                                                </td>
+                                                <td class="py-2 px-3">
+                                                    <button class="text-destructive hover:text-destructive/90 transition-colors"
+                                                            data-event="click:removeMapping">
+                                                        <i class="fas fa-trash text-xs"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- @END_MAP )) -->
+                </div>
+            </div>
+            <!-- @END_COMPONENT: ConfigurationForm -->
+
+            <!-- @COMPONENT: JsonPreview -->
+            <div class="lg:col-span-1">
+                <div class="bg-card rounded-lg border border-border p-6 sticky top-8">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-2">
+                            <i class="fas fa-code text-primary"></i>
+                            <h2 class="text-lg font-semibold text-foreground">JSON Preview</h2>
+                        </div>
+                        <button class="text-muted-foreground hover:text-foreground transition-colors"
+                                data-event="click:refreshPreview">
+                            <i class="fas fa-sync-alt text-sm"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- JSON Output -->
+                    <div class="bg-muted rounded-md p-4 text-sm font-mono overflow-x-auto max-h-96 overflow-y-auto">
+                        <pre class="text-foreground whitespace-pre-wrap" data-bind="jsonOutput" data-mock="true">{
+  "plcs": [
+    {
+      "plc_name": "PLC1",
+      "plc_ip": "192.168.2.2",
+      "opcua_url": "opc.tcp://192.168.1.20:4840",
+      "address_mappings": [
+        {
+          "plc_reg_add": "2.01",
+          "data_type": "int16",
+          "opcua_reg_add": "BOOL_VAR01"
+        },
+        {
+          "plc_reg_add": "C0001",
+          "data_type": "int16",
+          "opcua_reg_add": "INT_VAR01"
+        }
+      ]
+    },
+    {
+      "plc_name": "PLC2",
+      "plc_ip": "192.168.2.4",
+      "opcua_url": "opc.tcp://192.168.1.20:4840",
+      "address_mappings": [
+        {
+          "plc_reg_add": "2.01",
+          "data_type": "int16",
+          "opcua_reg_add": "BOOL_VAR03"
+        },
+        {
+          "plc_reg_add": "C0001",
+          "data_type": "int16",
+          "opcua_reg_add": "INT_VAR04"
+        }
+      ]
+    }
+  ]
+}</pre>
+                    </div>
+
+                    <!-- Validation Status -->
+                    <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
+                        <div class="flex items-center space-x-2">
+                            <i class="fas fa-check-circle text-green-600"></i>
+                            <span class="text-sm text-green-800">Configuration is valid</span>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="mt-6 space-y-3">
+                        <button class="w-full bg-primary text-primary-foreground py-2 px-4 rounded-md font-medium hover:bg-primary/90 transition-colors"
+                                data-event="click:downloadJson">
+                            <i class="fas fa-download mr-2"></i>Download JSON
+                        </button>
+                        <button class="w-full bg-secondary text-secondary-foreground py-2 px-4 rounded-md font-medium hover:bg-secondary/80 transition-colors"
+                                data-event="click:copyToClipboard">
+                            <i class="fas fa-copy mr-2"></i>Copy to Clipboard
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <!-- @END_COMPONENT: JsonPreview -->
+        </div>
+    </div>
+
+    <!-- @COMPONENT: ToastNotifications -->
+    <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2">
+        <!-- Success Toast -->
+        <div class="bg-green-100 border border-green-200 text-green-800 px-4 py-3 rounded-md shadow-md hidden" id="success-toast">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-check-circle"></i>
+                <span class="text-sm font-medium">Configuration saved successfully!</span>
+            </div>
+        </div>
+        <!-- Error Toast -->
+        <div class="bg-red-100 border border-red-200 text-red-800 px-4 py-3 rounded-md shadow-md hidden" id="error-toast">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-exclamation-circle"></i>
+                <span class="text-sm font-medium">Please check your inputs and try again.</span>
+            </div>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: ToastNotifications -->
+
+    <script>
+        // TODO: Implement business logic, API calls, and state management
+        (function() {
+            // Placeholder for PLC configuration management
+            const configState = {
+                fileName: 'plc-configuration.json',
+                plcs: []
+            };
+
+            // Placeholder for file upload handling
+            function handleFileUpload(file) {
+                // TODO: Parse CSV/TXT file and populate address mappings
+                console.log('File upload:', file.name);
+            }
+
+            // Placeholder for JSON generation
+            function generateJSON() {
+                // TODO: Generate JSON from current configuration state
+                console.log('Generating JSON configuration');
+            }
+
+            // Placeholder for form validation
+            function validateConfiguration() {
+                // TODO: Validate IP addresses, required fields, etc.
+                console.log('Validating configuration');
+            }
+
+            // Placeholder for download functionality
+            function downloadJSON() {
+                // TODO: Create and download JSON file
+                console.log('Downloading JSON file');
+            }
+
+            // Event listeners for demonstration
+            document.addEventListener('click', function(e) {
+                if (e.target.closest('[data-event*="click:"]')) {
+                    const action = e.target.closest('[data-event*="click:"]').getAttribute('data-event').split(':')[1];
+                    console.log('Action triggered:', action);
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

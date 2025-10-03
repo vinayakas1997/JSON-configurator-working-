@@ -1,0 +1,658 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PLC Configuration Builder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                borderRadius: {
+                    lg: "var(--radius)",
+                    md: "calc(var(--radius) - 2px)",
+                    sm: "calc(var(--radius) - 4px)",
+                },
+                colors: {
+                    background: "var(--background)",
+                    foreground: "var(--foreground)",
+                    card: {
+                        DEFAULT: "var(--card)",
+                        foreground: "var(--card-foreground)",
+                    },
+                    primary: {
+                        DEFAULT: "var(--primary)",
+                        foreground: "var(--primary-foreground)",
+                    },
+                    secondary: {
+                        DEFAULT: "var(--secondary)",
+                        foreground: "var(--secondary-foreground)",
+                    },
+                    muted: {
+                        DEFAULT: "var(--muted)",
+                        foreground: "var(--muted-foreground)",
+                    },
+                    accent: {
+                        DEFAULT: "var(--accent)",
+                        foreground: "var(--accent-foreground)",
+                    },
+                    border: "var(--border)",
+                    input: "var(--input)",
+                    ring: "var(--ring)",
+                }
+            }
+        }
+    };
+    </script>
+    <style>
+        :root {
+            --background: hsl(210 40% 98%);
+            --foreground: hsl(222 84% 5%);
+            --card: hsl(0 0% 100%);
+            --card-foreground: hsl(222 84% 5%);
+            --primary: hsl(221 83% 53%);
+            --primary-foreground: hsl(210 40% 98%);
+            --secondary: hsl(215 20% 65%);
+            --secondary-foreground: hsl(222 84% 5%);
+            --muted: hsl(210 40% 96%);
+            --muted-foreground: hsl(215 20% 65%);
+            --accent: hsl(159 64% 40%);
+            --accent-foreground: hsl(210 40% 98%);
+            --border: hsl(214 32% 91%);
+            --input: hsl(214 32% 91%);
+            --ring: hsl(221 83% 53%);
+            --radius: 8px;
+        }
+        
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .drag-over {
+            border-color: var(--primary);
+            background-color: hsl(221 83% 53% / 0.05);
+        }
+    </style>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-background text-foreground min-h-screen">
+    <!-- Header -->
+    <header class="bg-card shadow-sm border-b border-border">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-microchip text-primary text-2xl"></i>
+                    <h1 class="text-xl font-semibold text-foreground" data-i18n="title">PLC Configuration Builder</h1>
+                </div>
+                
+                <!-- Language Toggle -->
+                <div class="flex items-center space-x-4">
+                    <div class="relative">
+                        <button id="languageToggle" class="flex items-center space-x-2 px-4 py-2 bg-secondary/10 hover:bg-secondary/20 rounded-lg transition-colors">
+                            <i class="fas fa-globe text-secondary"></i>
+                            <span class="text-sm font-medium text-secondary-foreground" id="currentLang">English</span>
+                            <i class="fas fa-chevron-down text-xs text-secondary"></i>
+                        </button>
+                        <div id="langDropdown" class="hidden absolute right-0 mt-2 w-32 bg-card rounded-lg shadow-lg border border-border py-1 z-10">
+                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-muted transition-colors" data-lang="en">English</button>
+                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-muted transition-colors" data-lang="ja">日本語</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- File Configuration Section -->
+        <div class="mb-8">
+            <div class="bg-card rounded-lg shadow-sm border border-border p-6">
+                <h2 class="text-lg font-semibold text-foreground mb-4" data-i18n="file_config">File Configuration</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-foreground mb-2" data-i18n="filename">Filename</label>
+                        <input type="text" id="filename" value="plc_config.json" 
+                               class="w-full px-3 py-2 border border-input rounded-md focus:ring-2 focus:ring-ring focus:border-ring transition-colors bg-background">
+                    </div>
+                    <div class="flex items-end">
+                        <button id="downloadJson" class="px-6 py-2 bg-accent text-accent-foreground rounded-md hover:bg-accent/90 transition-colors font-medium">
+                            <i class="fas fa-download mr-2"></i>
+                            <span data-i18n="download">Download JSON</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PLC Configuration Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Left Column - Configuration Forms -->
+            <div class="space-y-6">
+                <!-- Add PLC Section -->
+                <div class="bg-card rounded-lg shadow-sm border border-border p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold text-foreground" data-i18n="plc_devices">PLC Devices</h2>
+                        <button id="addPlcBtn" class="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-sm font-medium">
+                            <i class="fas fa-plus mr-2"></i>
+                            <span data-i18n="add_plc">Add PLC</span>
+                        </button>
+                    </div>
+                    
+                    <!-- PLC List -->
+                    <div id="plcList" class="space-y-4">
+                        <!-- PLC 1 -->
+                        <div class="border border-border rounded-lg p-4 plc-item">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="font-medium text-foreground">PLC 1</h3>
+                                <div class="flex items-center space-x-2">
+                                    <button class="text-secondary hover:text-foreground transition-colors" onclick="togglePlcSection(this)">
+                                        <i class="fas fa-chevron-down"></i>
+                                    </button>
+                                    <button class="text-red-500 hover:text-red-700 transition-colors">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="plc-content space-y-4">
+                                <div class="grid grid-cols-1 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-foreground mb-1" data-i18n="plc_name">PLC Name</label>
+                                        <input type="text" value="PLC1" class="w-full px-3 py-2 border border-input rounded-md focus:ring-2 focus:ring-ring focus:border-ring transition-colors bg-background">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-foreground mb-1" data-i18n="plc_ip">PLC IP Address</label>
+                                        <input type="text" value="192.168.2.2" class="w-full px-3 py-2 border border-input rounded-md focus:ring-2 focus:ring-ring focus:border-ring transition-colors bg-background">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-foreground mb-1" data-i18n="opcua_url">OPC UA URL</label>
+                                        <input type="text" value="opc.tcp://192.168.1.20:4840" class="w-full px-3 py-2 border border-input rounded-md focus:ring-2 focus:ring-ring focus:border-ring transition-colors bg-background">
+                                    </div>
+                                </div>
+                                
+                                <!-- Address Mappings -->
+                                <div class="mt-6">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <h4 class="font-medium text-foreground" data-i18n="address_mappings">Address Mappings</h4>
+                                        <button class="px-3 py-1 bg-secondary/10 text-secondary hover:bg-secondary/20 rounded text-sm transition-colors">
+                                            <i class="fas fa-plus mr-1"></i>
+                                            <span data-i18n="add_mapping">Add Mapping</span>
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- File Upload for Address Mappings -->
+                                    <div class="mb-4 p-4 border-2 border-dashed border-border rounded-lg hover:border-primary/50 transition-colors cursor-pointer" 
+                                         onclick="document.getElementById('csvUpload').click()">
+                                        <div class="text-center">
+                                            <i class="fas fa-cloud-upload-alt text-3xl text-secondary mb-2"></i>
+                                            <p class="text-sm text-secondary-foreground" data-i18n="upload_file">Click to upload CSV/TXT file or drag and drop</p>
+                                            <p class="text-xs text-muted-foreground mt-1" data-i18n="file_format">Format: plc_reg_add, data_type, opcua_reg_add</p>
+                                        </div>
+                                        <input type="file" id="csvUpload" class="hidden" accept=".csv,.txt" />
+                                    </div>
+                                    
+                                    <!-- Address Mappings Table -->
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-sm">
+                                            <thead>
+                                                <tr class="border-b border-border">
+                                                    <th class="text-left py-2 px-2 font-medium text-foreground" data-i18n="plc_reg_addr">PLC Reg Address</th>
+                                                    <th class="text-left py-2 px-2 font-medium text-foreground" data-i18n="data_type">Data Type</th>
+                                                    <th class="text-left py-2 px-2 font-medium text-foreground" data-i18n="opcua_reg_addr">OPC UA Reg Address</th>
+                                                    <th class="w-12"></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr class="border-b border-border">
+                                                    <td class="py-2 px-2">
+                                                        <input type="text" value="2.01" class="w-full px-2 py-1 border border-input rounded text-xs focus:ring-1 focus:ring-ring bg-background">
+                                                    </td>
+                                                    <td class="py-2 px-2">
+                                                        <select class="w-full px-2 py-1 border border-input rounded text-xs focus:ring-1 focus:ring-ring bg-background">
+                                                            <option value="int16" selected>int16</option>
+                                                            <option value="bool">bool</option>
+                                                            <option value="float32">float32</option>
+                                                            <option value="uint16">uint16</option>
+                                                            <option value="int32">int32</option>
+                                                            <option value="uint32">uint32</option>
+                                                        </select>
+                                                    </td>
+                                                    <td class="py-2 px-2">
+                                                        <input type="text" value="BOOL_VAR01" class="w-full px-2 py-1 border border-input rounded text-xs focus:ring-1 focus:ring-ring bg-background">
+                                                    </td>
+                                                    <td class="py-2 px-2 text-center">
+                                                        <button class="text-red-500 hover:text-red-700 transition-colors">
+                                                            <i class="fas fa-trash-alt text-xs"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                                <tr class="border-b border-border">
+                                                    <td class="py-2 px-2">
+                                                        <input type="text" value="C0001" class="w-full px-2 py-1 border border-input rounded text-xs focus:ring-1 focus:ring-ring bg-background">
+                                                    </td>
+                                                    <td class="py-2 px-2">
+                                                        <select class="w-full px-2 py-1 border border-input rounded text-xs focus:ring-1 focus:ring-ring bg-background">
+                                                            <option value="int16" selected>int16</option>
+                                                            <option value="bool">bool</option>
+                                                            <option value="float32">float32</option>
+                                                            <option value="uint16">uint16</option>
+                                                            <option value="int32">int32</option>
+                                                            <option value="uint32">uint32</option>
+                                                        </select>
+                                                    </td>
+                                                    <td class="py-2 px-2">
+                                                        <input type="text" value="INT_VAR01" class="w-full px-2 py-1 border border-input rounded text-xs focus:ring-1 focus:ring-ring bg-background">
+                                                    </td>
+                                                    <td class="py-2 px-2 text-center">
+                                                        <button class="text-red-500 hover:text-red-700 transition-colors">
+                                                            <i class="fas fa-trash-alt text-xs"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- PLC 2 -->
+                        <div class="border border-border rounded-lg p-4 plc-item">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="font-medium text-foreground">PLC 2</h3>
+                                <div class="flex items-center space-x-2">
+                                    <button class="text-secondary hover:text-foreground transition-colors" onclick="togglePlcSection(this)">
+                                        <i class="fas fa-chevron-down"></i>
+                                    </button>
+                                    <button class="text-red-500 hover:text-red-700 transition-colors">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="plc-content space-y-4">
+                                <div class="grid grid-cols-1 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-foreground mb-1" data-i18n="plc_name">PLC Name</label>
+                                        <input type="text" value="PLC2" class="w-full px-3 py-2 border border-input rounded-md focus:ring-2 focus:ring-ring focus:border-ring transition-colors bg-background">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-foreground mb-1" data-i18n="plc_ip">PLC IP Address</label>
+                                        <input type="text" value="192.168.2.4" class="w-full px-3 py-2 border border-input rounded-md focus:ring-2 focus:ring-ring focus:border-ring transition-colors bg-background">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-foreground mb-1" data-i18n="opcua_url">OPC UA URL</label>
+                                        <input type="text" value="opc.tcp://192.168.1.20:4840" class="w-full px-3 py-2 border border-input rounded-md focus:ring-2 focus:ring-ring focus:border-ring transition-colors bg-background">
+                                    </div>
+                                </div>
+                                
+                                <!-- Address Mappings -->
+                                <div class="mt-6">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <h4 class="font-medium text-foreground" data-i18n="address_mappings">Address Mappings</h4>
+                                        <button class="px-3 py-1 bg-secondary/10 text-secondary hover:bg-secondary/20 rounded text-sm transition-colors">
+                                            <i class="fas fa-plus mr-1"></i>
+                                            <span data-i18n="add_mapping">Add Mapping</span>
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- Address Mappings Table -->
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-sm">
+                                            <thead>
+                                                <tr class="border-b border-border">
+                                                    <th class="text-left py-2 px-2 font-medium text-foreground" data-i18n="plc_reg_addr">PLC Reg Address</th>
+                                                    <th class="text-left py-2 px-2 font-medium text-foreground" data-i18n="data_type">Data Type</th>
+                                                    <th class="text-left py-2 px-2 font-medium text-foreground" data-i18n="opcua_reg_addr">OPC UA Reg Address</th>
+                                                    <th class="w-12"></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr class="border-b border-border">
+                                                    <td class="py-2 px-2">
+                                                        <input type="text" value="2.01" class="w-full px-2 py-1 border border-input rounded text-xs focus:ring-1 focus:ring-ring bg-background">
+                                                    </td>
+                                                    <td class="py-2 px-2">
+                                                        <select class="w-full px-2 py-1 border border-input rounded text-xs focus:ring-1 focus:ring-ring bg-background">
+                                                            <option value="int16" selected>int16</option>
+                                                            <option value="bool">bool</option>
+                                                            <option value="float32">float32</option>
+                                                            <option value="uint16">uint16</option>
+                                                            <option value="int32">int32</option>
+                                                            <option value="uint32">uint32</option>
+                                                        </select>
+                                                    </td>
+                                                    <td class="py-2 px-2">
+                                                        <input type="text" value="BOOL_VAR03" class="w-full px-2 py-1 border border-input rounded text-xs focus:ring-1 focus:ring-ring bg-background">
+                                                    </td>
+                                                    <td class="py-2 px-2 text-center">
+                                                        <button class="text-red-500 hover:text-red-700 transition-colors">
+                                                            <i class="fas fa-trash-alt text-xs"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                                <tr class="border-b border-border">
+                                                    <td class="py-2 px-2">
+                                                        <input type="text" value="C0001" class="w-full px-2 py-1 border border-input rounded text-xs focus:ring-1 focus:ring-ring bg-background">
+                                                    </td>
+                                                    <td class="py-2 px-2">
+                                                        <select class="w-full px-2 py-1 border border-input rounded text-xs focus:ring-1 focus:ring-ring bg-background">
+                                                            <option value="int16" selected>int16</option>
+                                                            <option value="bool">bool</option>
+                                                            <option value="float32">float32</option>
+                                                            <option value="uint16">uint16</option>
+                                                            <option value="int32">int32</option>
+                                                            <option value="uint32">uint32</option>
+                                                        </select>
+                                                    </td>
+                                                    <td class="py-2 px-2">
+                                                        <input type="text" value="INT_VAR04" class="w-full px-2 py-1 border border-input rounded text-xs focus:ring-1 focus:ring-ring bg-background">
+                                                    </td>
+                                                    <td class="py-2 px-2 text-center">
+                                                        <button class="text-red-500 hover:text-red-700 transition-colors">
+                                                            <i class="fas fa-trash-alt text-xs"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column - JSON Preview -->
+            <div class="space-y-6">
+                <div class="bg-card rounded-lg shadow-sm border border-border p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold text-foreground" data-i18n="json_preview">JSON Preview</h2>
+                        <button id="copyJsonBtn" class="px-3 py-2 bg-secondary/10 text-secondary hover:bg-secondary/20 rounded text-sm transition-colors">
+                            <i class="fas fa-copy mr-2"></i>
+                            <span data-i18n="copy">Copy</span>
+                        </button>
+                    </div>
+                    <div class="relative">
+                        <pre id="jsonPreview" class="bg-muted p-4 rounded-lg text-xs overflow-x-auto max-h-96 text-muted-foreground font-mono">{
+    "plcs": [
+        {
+            "plc_name": "PLC1",
+            "plc_ip": "192.168.2.2",
+            "opcua_url": "opc.tcp://192.168.1.20:4840",
+            "address_mappings": [
+                {
+                    "plc_reg_add": "2.01",
+                    "data_type": "int16",
+                    "opcua_reg_add": "BOOL_VAR01"
+                },
+                {
+                    "plc_reg_add": "C0001",
+                    "data_type": "int16",
+                    "opcua_reg_add": "INT_VAR01"
+                }
+            ]
+        },
+        {
+            "plc_name": "PLC2",
+            "plc_ip": "192.168.2.4",
+            "opcua_url": "opc.tcp://192.168.1.20:4840",
+            "address_mappings": [
+                {
+                    "plc_reg_add": "2.01",
+                    "data_type": "int16",
+                    "opcua_reg_add": "BOOL_VAR03"
+                },
+                {
+                    "plc_reg_add": "C0001",
+                    "data_type": "int16",
+                    "opcua_reg_add": "INT_VAR04"
+                }
+            ]
+        }
+    ]
+}</pre>
+                    </div>
+                </div>
+
+                <!-- Validation Status -->
+                <div class="bg-card rounded-lg shadow-sm border border-border p-6">
+                    <h3 class="text-lg font-semibold text-foreground mb-4" data-i18n="validation">Validation Status</h3>
+                    <div class="space-y-3">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-3 h-3 bg-accent rounded-full"></div>
+                            <span class="text-sm text-foreground" data-i18n="valid_json">Valid JSON format</span>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <div class="w-3 h-3 bg-accent rounded-full"></div>
+                            <span class="text-sm text-foreground" data-i18n="valid_ips">All IP addresses valid</span>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <div class="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                            <span class="text-sm text-foreground" data-i18n="missing_mappings">2 PLCs have address mappings</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-16 bg-card border-t border-border">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div class="text-center">
+                <p class="text-sm text-muted-foreground" data-i18n="footer">
+                    PLC Configuration Builder - Industrial automation made simple
+                </p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Language translations
+        const translations = {
+            en: {
+                title: "PLC Configuration Builder",
+                file_config: "File Configuration",
+                filename: "Filename",
+                download: "Download JSON",
+                plc_devices: "PLC Devices",
+                add_plc: "Add PLC",
+                plc_name: "PLC Name",
+                plc_ip: "PLC IP Address",
+                opcua_url: "OPC UA URL",
+                address_mappings: "Address Mappings",
+                add_mapping: "Add Mapping",
+                upload_file: "Click to upload CSV/TXT file or drag and drop",
+                file_format: "Format: plc_reg_add, data_type, opcua_reg_add",
+                plc_reg_addr: "PLC Reg Address",
+                data_type: "Data Type",
+                opcua_reg_addr: "OPC UA Reg Address",
+                json_preview: "JSON Preview",
+                copy: "Copy",
+                validation: "Validation Status",
+                valid_json: "Valid JSON format",
+                valid_ips: "All IP addresses valid",
+                missing_mappings: "2 PLCs have address mappings",
+                footer: "PLC Configuration Builder - Industrial automation made simple"
+            },
+            ja: {
+                title: "PLC設定ビルダー",
+                file_config: "ファイル設定",
+                filename: "ファイル名",
+                download: "JSONダウンロード",
+                plc_devices: "PLCデバイス",
+                add_plc: "PLC追加",
+                plc_name: "PLC名",
+                plc_ip: "PLC IPアドレス",
+                opcua_url: "OPC UA URL",
+                address_mappings: "アドレスマッピング",
+                add_mapping: "マッピング追加",
+                upload_file: "CSV/TXTファイルをクリックまたはドラッグアンドドロップ",
+                file_format: "形式: plc_reg_add, data_type, opcua_reg_add",
+                plc_reg_addr: "PLCレジスタアドレス",
+                data_type: "データタイプ",
+                opcua_reg_addr: "OPC UAレジスタアドレス",
+                json_preview: "JSONプレビュー",
+                copy: "コピー",
+                validation: "検証ステータス",
+                valid_json: "有効なJSON形式",
+                valid_ips: "すべてのIPアドレスが有効",
+                missing_mappings: "2つのPLCにアドレスマッピングがあります",
+                footer: "PLC設定ビルダー - 産業オートメーションをシンプルに"
+            }
+        };
+
+        let currentLanguage = 'en';
+
+        // Language toggle functionality
+        (function() {
+            const languageToggle = document.getElementById('languageToggle');
+            const langDropdown = document.getElementById('langDropdown');
+            const currentLangElement = document.getElementById('currentLang');
+
+            languageToggle.addEventListener('click', function() {
+                langDropdown.classList.toggle('hidden');
+            });
+
+            document.addEventListener('click', function(e) {
+                if (!languageToggle.contains(e.target)) {
+                    langDropdown.classList.add('hidden');
+                }
+            });
+
+            langDropdown.addEventListener('click', function(e) {
+                if (e.target.dataset.lang) {
+                    currentLanguage = e.target.dataset.lang;
+                    currentLangElement.textContent = e.target.textContent;
+                    langDropdown.classList.add('hidden');
+                    updateLanguage();
+                }
+            });
+
+            function updateLanguage() {
+                const elements = document.querySelectorAll('[data-i18n]');
+                elements.forEach(element => {
+                    const key = element.dataset.i18n;
+                    if (translations[currentLanguage] && translations[currentLanguage][key]) {
+                        element.textContent = translations[currentLanguage][key];
+                    }
+                });
+            }
+        })();
+
+        // PLC section toggle functionality
+        function togglePlcSection(button) {
+            const plcItem = button.closest('.plc-item');
+            const content = plcItem.querySelector('.plc-content');
+            const chevron = button.querySelector('i');
+            
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                chevron.classList.remove('fa-chevron-right');
+                chevron.classList.add('fa-chevron-down');
+            } else {
+                content.style.display = 'none';
+                chevron.classList.remove('fa-chevron-down');
+                chevron.classList.add('fa-chevron-right');
+            }
+        }
+
+        // Copy JSON functionality
+        document.getElementById('copyJsonBtn').addEventListener('click', function() {
+            const jsonText = document.getElementById('jsonPreview').textContent;
+            navigator.clipboard.writeText(jsonText).then(function() {
+                // TODO: Show success notification
+                console.log('JSON copied to clipboard');
+            });
+        });
+
+        // Download JSON functionality
+        document.getElementById('downloadJson').addEventListener('click', function() {
+            const filename = document.getElementById('filename').value;
+            const jsonText = document.getElementById('jsonPreview').textContent;
+            
+            const blob = new Blob([jsonText], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        // File upload functionality
+        document.getElementById('csvUpload').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    // TODO: Parse CSV/TXT content and populate table
+                    console.log('File content:', e.target.result);
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        // Drag and drop functionality
+        (function() {
+            const dropZones = document.querySelectorAll('[onclick*="csvUpload"]');
+            
+            dropZones.forEach(zone => {
+                zone.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    zone.classList.add('drag-over');
+                });
+
+                zone.addEventListener('dragleave', function(e) {
+                    e.preventDefault();
+                    zone.classList.remove('drag-over');
+                });
+
+                zone.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    zone.classList.remove('drag-over');
+                    
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        // TODO: Handle dropped files
+                        console.log('Files dropped:', files);
+                    }
+                });
+            });
+        })();
+
+        // Form validation
+        (function() {
+            const ipInputs = document.querySelectorAll('input[type="text"]');
+            
+            ipInputs.forEach(input => {
+                if (input.value.includes('192.168') || input.value.includes('opc.tcp')) {
+                    input.addEventListener('blur', function() {
+                        // TODO: Validate IP address format
+                        console.log('Validating:', input.value);
+                    });
+                }
+            });
+        })();
+
+        // Real-time JSON update
+        (function() {
+            const inputs = document.querySelectorAll('input, select');
+            
+            inputs.forEach(input => {
+                input.addEventListener('input', function() {
+                    // TODO: Update JSON preview in real-time
+                    console.log('Input changed:', input.value);
+                });
+            });
+        })();
+    </script>
+</body>
+</html>

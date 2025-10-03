@@ -1,0 +1,737 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PLC Config File Builder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                borderRadius: {
+                    lg: "var(--radius)",
+                    md: "calc(var(--radius) - 2px)",
+                    sm: "calc(var(--radius) - 4px)",
+                },
+                colors: {
+                    background: "var(--background)",
+                    foreground: "var(--foreground)",
+                    card: {
+                        DEFAULT: "var(--card)",
+                        foreground: "var(--card-foreground)",
+                    },
+                    popover: {
+                        DEFAULT: "var(--popover)",
+                        foreground: "var(--popover-foreground)",
+                    },
+                    primary: {
+                        DEFAULT: "var(--primary)",
+                        foreground: "var(--primary-foreground)",
+                    },
+                    secondary: {
+                        DEFAULT: "var(--secondary)",
+                        foreground: "var(--secondary-foreground)",
+                    },
+                    muted: {
+                        DEFAULT: "var(--muted)",
+                        foreground: "var(--muted-foreground)",
+                    },
+                    accent: {
+                        DEFAULT: "var(--accent)",
+                        foreground: "var(--accent-foreground)",
+                    },
+                    destructive: {
+                        DEFAULT: "var(--destructive)",
+                        foreground: "var(--destructive-foreground)",
+                    },
+                    border: "var(--border)",
+                    input: "var(--input)",
+                    ring: "var(--ring)",
+                },
+                fontFamily: {
+                    sans: ["Inter", "system-ui", "sans-serif"],
+                }
+            },
+        }
+    };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --background: hsl(210 40% 98%);
+            --foreground: hsl(222 84% 5%);
+            --card: hsl(0 0% 100%);
+            --card-foreground: hsl(222 84% 5%);
+            --popover: hsl(0 0% 100%);
+            --popover-foreground: hsl(222 84% 5%);
+            --primary: hsl(214 100% 40%);
+            --primary-foreground: hsl(210 40% 98%);
+            --secondary: hsl(215 16% 47%);
+            --secondary-foreground: hsl(0 0% 100%);
+            --muted: hsl(210 40% 96%);
+            --muted-foreground: hsl(215 20% 65%);
+            --accent: hsl(159 70% 50%);
+            --accent-foreground: hsl(0 0% 100%);
+            --destructive: hsl(0 84% 60%);
+            --destructive-foreground: hsl(210 40% 98%);
+            --border: hsl(214 32% 91%);
+            --input: hsl(214 32% 91%);
+            --ring: hsl(214 100% 40%);
+            --radius: 8px;
+        }
+        
+        .upload-zone {
+            border: 2px dashed hsl(var(--border));
+            transition: all 0.3s ease;
+        }
+        
+        .upload-zone:hover {
+            border-color: hsl(var(--primary));
+            background-color: hsl(var(--primary) / 0.05);
+        }
+        
+        .progress-bar {
+            width: 0%;
+            transition: width 1s ease-in-out;
+        }
+        
+        .sidebar-open {
+            transform: translateX(0);
+        }
+        
+        .sidebar-closed {
+            transform: translateX(-100%);
+        }
+        
+        .expandable-section {
+            transition: max-height 0.3s ease-in-out;
+            overflow: hidden;
+        }
+        
+        .table-row:hover {
+            background-color: hsl(var(--muted));
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .slide-up {
+            animation: slideUp 0.5s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-background text-foreground font-sans">
+    <!-- Navigation Bar -->
+    <nav class="bg-card border-b border-border shadow-sm sticky top-0 z-50">
+        <div class="max-w-full px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Left: Menu Button and Sessions -->
+                <div class="flex items-center space-x-4">
+                    <button id="menuToggle" class="p-2 rounded-md hover:bg-muted transition-colors">
+                        <i class="fas fa-bars text-lg text-foreground"></i>
+                    </button>
+                    <div class="hidden md:flex items-center space-x-2">
+                        <i class="fas fa-microchip text-primary"></i>
+                        <span class="text-sm font-medium text-muted-foreground" id="sessionText">Session: PLC-CONFIG-01</span>
+                    </div>
+                </div>
+                
+                <!-- Center: Title and Date -->
+                <div class="flex flex-col items-center">
+                    <h1 class="text-lg font-semibold text-foreground" id="mainTitle">PLC Config File Builder</h1>
+                    <span class="text-xs text-muted-foreground" id="currentDate">December 27, 2024</span>
+                </div>
+                
+                <!-- Right: Language Toggle -->
+                <div class="flex items-center space-x-2">
+                    <button id="langToggle" class="flex items-center space-x-2 px-3 py-1 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors">
+                        <i class="fas fa-globe text-sm"></i>
+                        <span class="text-sm font-medium" id="currentLang">EN</span>
+                        <i class="fas fa-chevron-down text-xs"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Sidebar -->
+    <div id="sidebar" class="fixed left-0 top-16 h-full w-64 bg-card border-r border-border shadow-lg transform sidebar-closed transition-transform duration-300 z-40">
+        <div class="p-4">
+            <h2 class="text-lg font-semibold text-foreground mb-4" id="sidebarTitle">PLC Sessions</h2>
+            <div class="space-y-2">
+                <div class="p-3 rounded-lg bg-primary text-primary-foreground">
+                    <div class="flex items-center space-x-2">
+                        <i class="fas fa-microchip"></i>
+                        <span class="font-medium">PLC-CONFIG-01</span>
+                    </div>
+                    <div class="text-sm opacity-90 mt-1">Active Session</div>
+                </div>
+                <div class="p-3 rounded-lg border border-border hover:bg-muted cursor-pointer transition-colors">
+                    <div class="flex items-center space-x-2">
+                        <i class="fas fa-plus text-muted-foreground"></i>
+                        <span class="text-muted-foreground" id="newSessionText">New Session</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="min-h-screen">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            
+            <!-- File Configuration Section -->
+            <div class="mb-6">
+                <div class="bg-card rounded-lg shadow-sm border border-border p-6">
+                    <h2 class="text-xl font-semibold text-foreground mb-4" id="configTitle">Configuration File Settings</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-2" id="fileNameLabel">Configuration File Name</label>
+                            <input type="text" 
+                                   value="plc_config.json" 
+                                   class="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                                   id="configFileName">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-2" id="descriptionLabel">Description</label>
+                            <input type="text" 
+                                   placeholder="Enter configuration description..." 
+                                   class="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                                   id="configDescription">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- File Upload Card -->
+            <div id="uploadCard" class="mb-6 slide-up">
+                <div class="bg-card rounded-lg shadow-sm border border-border p-6">
+                    <div class="flex items-center space-x-2 mb-4">
+                        <i class="fas fa-upload text-primary"></i>
+                        <h2 class="text-xl font-semibold text-foreground" id="uploadTitle">Import Address Mappings</h2>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <p class="text-muted-foreground mb-2" id="uploadDescription">
+                            Upload a CSV or TXT file containing address mapping data with the following 4 columns:
+                        </p>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                            <div class="bg-muted p-2 rounded text-center">
+                                <span class="font-medium" id="col1">PLC Register Name</span>
+                            </div>
+                            <div class="bg-muted p-2 rounded text-center">
+                                <span class="font-medium" id="col2">Data Type</span>
+                            </div>
+                            <div class="bg-muted p-2 rounded text-center">
+                                <span class="font-medium" id="col3">PLC Memory Address</span>
+                            </div>
+                            <div class="bg-muted p-2 rounded text-center">
+                                <span class="font-medium" id="col4">OPC UA Register</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="upload-zone rounded-lg p-8 text-center cursor-pointer" id="uploadZone">
+                        <i class="fas fa-cloud-upload-alt text-4xl text-muted-foreground mb-4"></i>
+                        <p class="text-lg font-medium text-foreground mb-2" id="uploadText">Click to upload file</p>
+                        <p class="text-muted-foreground" id="uploadSubtext">or drag and drop your CSV/TXT file here</p>
+                        <input type="file" id="fileInput" class="hidden" accept=".csv,.txt">
+                    </div>
+                    
+                    <!-- Progress Bar -->
+                    <div id="progressContainer" class="mt-4 hidden">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm font-medium text-foreground" id="progressText">Uploading file...</span>
+                            <span class="text-sm text-muted-foreground" id="progressPercent">0%</span>
+                        </div>
+                        <div class="w-full bg-muted rounded-full h-2">
+                            <div id="progressBar" class="progress-bar bg-primary h-2 rounded-full"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PLC Configuration Section -->
+            <div class="mb-6">
+                <div class="bg-card rounded-lg shadow-sm border border-border p-6">
+                    <h2 class="text-xl font-semibold text-foreground mb-4" id="plcConfigTitle">PLC Configuration</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-2" id="plcNameLabel">PLC Name</label>
+                            <input type="text" 
+                                   value="PLC1" 
+                                   class="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                                   id="plcName">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-2" id="plcIpLabel">PLC IP Address</label>
+                            <input type="text" 
+                                   value="192.168.2.2" 
+                                   class="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                                   id="plcIp">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-2" id="opcuaUrlLabel">OPC UA URL</label>
+                            <input type="text" 
+                                   value="opc.tcp://192.168.1.20:4840" 
+                                   class="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                                   id="opcuaUrl">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Expandable Sections -->
+            <div class="space-y-4">
+                <!-- Overview Details Section -->
+                <div class="bg-card rounded-lg shadow-sm border border-border">
+                    <button id="overviewToggle" class="w-full p-4 text-left flex justify-between items-center hover:bg-muted transition-colors">
+                        <div class="flex items-center space-x-2">
+                            <i class="fas fa-chart-bar text-primary"></i>
+                            <span class="text-lg font-medium text-foreground" id="overviewTitle">Overview Details</span>
+                        </div>
+                        <i id="overviewChevron" class="fas fa-chevron-down text-muted-foreground transition-transform"></i>
+                    </button>
+                    <div id="overviewContent" class="expandable-section max-h-0">
+                        <div class="p-4 border-t border-border">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="bg-muted p-4 rounded-lg">
+                                    <div class="text-2xl font-bold text-primary">0</div>
+                                    <div class="text-sm text-muted-foreground" id="totalMappings">Total Mappings</div>
+                                </div>
+                                <div class="bg-muted p-4 rounded-lg">
+                                    <div class="text-2xl font-bold text-accent">0</div>
+                                    <div class="text-sm text-muted-foreground" id="configuredPlcs">Configured PLCs</div>
+                                </div>
+                                <div class="bg-muted p-4 rounded-lg">
+                                    <div class="text-2xl font-bold text-secondary">Ready</div>
+                                    <div class="text-sm text-muted-foreground" id="status">Configuration Status</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PLC Register Details Section -->
+                <div class="bg-card rounded-lg shadow-sm border border-border">
+                    <button id="detailsToggle" class="w-full p-4 text-left flex justify-between items-center hover:bg-muted transition-colors">
+                        <div class="flex items-center space-x-2">
+                            <i class="fas fa-table text-primary"></i>
+                            <span class="text-lg font-medium text-foreground" id="detailsTitle">PLC Register Details</span>
+                        </div>
+                        <i id="detailsChevron" class="fas fa-chevron-down text-muted-foreground transition-transform"></i>
+                    </button>
+                    <div id="detailsContent" class="expandable-section max-h-0">
+                        <div class="p-4 border-t border-border">
+                            <!-- Add New Mapping Button -->
+                            <div class="mb-4 flex justify-between items-center">
+                                <button id="addMappingBtn" class="px-4 py-2 bg-accent text-accent-foreground rounded-md hover:bg-accent/90 transition-colors">
+                                    <i class="fas fa-plus mr-2"></i>
+                                    <span id="addMappingText">Add New Mapping</span>
+                                </button>
+                                <div class="flex space-x-2">
+                                    <button id="previewJsonBtn" class="px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/90 transition-colors">
+                                        <i class="fas fa-eye mr-2"></i>
+                                        <span id="previewText">Preview JSON</span>
+                                    </button>
+                                    <button id="exportJsonBtn" class="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">
+                                        <i class="fas fa-download mr-2"></i>
+                                        <span id="exportText">Export JSON</span>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Address Mappings Table -->
+                            <div class="overflow-x-auto">
+                                <table class="w-full border border-border rounded-lg">
+                                    <thead class="bg-muted">
+                                        <tr>
+                                            <th class="px-4 py-3 text-left text-sm font-medium text-foreground" id="plcRegHeader">PLC Register</th>
+                                            <th class="px-4 py-3 text-left text-sm font-medium text-foreground" id="dataTypeHeader">Data Type</th>
+                                            <th class="px-4 py-3 text-left text-sm font-medium text-foreground" id="opcuaRegHeader">OPC UA Register</th>
+                                            <th class="px-4 py-3 text-left text-sm font-medium text-foreground" id="actionsHeader">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="mappingsTableBody">
+                                        <!-- Sample data -->
+                                        <tr class="table-row border-t border-border">
+                                            <td class="px-4 py-3">
+                                                <input type="text" value="2.01" class="w-full px-2 py-1 border border-input rounded text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                                            </td>
+                                            <td class="px-4 py-3">
+                                                <select class="w-full px-2 py-1 border border-input rounded text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                                                    <option value="int16">int16</option>
+                                                    <option value="int32">int32</option>
+                                                    <option value="float32">float32</option>
+                                                    <option value="bool">bool</option>
+                                                    <option value="string">string</option>
+                                                </select>
+                                            </td>
+                                            <td class="px-4 py-3">
+                                                <input type="text" value="BOOL_VAR01" class="w-full px-2 py-1 border border-input rounded text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                                            </td>
+                                            <td class="px-4 py-3">
+                                                <button class="text-destructive hover:text-destructive/80 transition-colors">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        <tr class="table-row border-t border-border">
+                                            <td class="px-4 py-3">
+                                                <input type="text" value="C0001" class="w-full px-2 py-1 border border-input rounded text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                                            </td>
+                                            <td class="px-4 py-3">
+                                                <select class="w-full px-2 py-1 border border-input rounded text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                                                    <option value="int16" selected>int16</option>
+                                                    <option value="int32">int32</option>
+                                                    <option value="float32">float32</option>
+                                                    <option value="bool">bool</option>
+                                                    <option value="string">string</option>
+                                                </select>
+                                            </td>
+                                            <td class="px-4 py-3">
+                                                <input type="text" value="INT_VAR01" class="w-full px-2 py-1 border border-input rounded text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                                            </td>
+                                            <td class="px-4 py-3">
+                                                <button class="text-destructive hover:text-destructive/80 transition-colors">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JSON Preview Modal -->
+    <div id="jsonModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-card rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-96 flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b border-border">
+                <h3 class="text-lg font-semibold text-foreground" id="jsonModalTitle">JSON Preview</h3>
+                <button id="closeJsonModal" class="text-muted-foreground hover:text-foreground">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="flex-1 overflow-auto p-4">
+                <pre id="jsonPreview" class="bg-muted p-4 rounded text-sm overflow-auto"></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overlay for sidebar -->
+    <div id="sidebarOverlay" class="fixed inset-0 bg-black bg-opacity-50 hidden z-30"></div>
+
+    <script>
+        (function() {
+            // Language translations
+            const translations = {
+                en: {
+                    sessionText: "Session: PLC-CONFIG-01",
+                    mainTitle: "PLC Config File Builder",
+                    sidebarTitle: "PLC Sessions",
+                    newSessionText: "New Session",
+                    configTitle: "Configuration File Settings",
+                    fileNameLabel: "Configuration File Name",
+                    descriptionLabel: "Description",
+                    uploadTitle: "Import Address Mappings",
+                    uploadDescription: "Upload a CSV or TXT file containing address mapping data with the following 4 columns:",
+                    col1: "PLC Register Name",
+                    col2: "Data Type", 
+                    col3: "PLC Memory Address",
+                    col4: "OPC UA Register",
+                    uploadText: "Click to upload file",
+                    uploadSubtext: "or drag and drop your CSV/TXT file here",
+                    progressText: "Uploading file...",
+                    plcConfigTitle: "PLC Configuration",
+                    plcNameLabel: "PLC Name",
+                    plcIpLabel: "PLC IP Address",
+                    opcuaUrlLabel: "OPC UA URL",
+                    overviewTitle: "Overview Details",
+                    detailsTitle: "PLC Register Details",
+                    totalMappings: "Total Mappings",
+                    configuredPlcs: "Configured PLCs",
+                    status: "Configuration Status",
+                    addMappingText: "Add New Mapping",
+                    previewText: "Preview JSON",
+                    exportText: "Export JSON",
+                    plcRegHeader: "PLC Register",
+                    dataTypeHeader: "Data Type",
+                    opcuaRegHeader: "OPC UA Register",
+                    actionsHeader: "Actions",
+                    jsonModalTitle: "JSON Preview",
+                    currentLang: "EN"
+                },
+                ja: {
+                    sessionText: "セッション: PLC-CONFIG-01",
+                    mainTitle: "PLC設定ファイルビルダー",
+                    sidebarTitle: "PLCセッション",
+                    newSessionText: "新しいセッション",
+                    configTitle: "設定ファイル設定",
+                    fileNameLabel: "設定ファイル名",
+                    descriptionLabel: "説明",
+                    uploadTitle: "アドレスマッピングのインポート",
+                    uploadDescription: "以下の4列を含むアドレスマッピングデータのCSVまたはTXTファイルをアップロードしてください：",
+                    col1: "PLCレジスタ名",
+                    col2: "データタイプ",
+                    col3: "PLCメモリアドレス", 
+                    col4: "OPC UAレジスタ",
+                    uploadText: "ファイルをアップロードするにはクリック",
+                    uploadSubtext: "またはCSV/TXTファイルをここにドラッグ＆ドロップ",
+                    progressText: "ファイルをアップロード中...",
+                    plcConfigTitle: "PLC設定",
+                    plcNameLabel: "PLC名",
+                    plcIpLabel: "PLC IPアドレス",
+                    opcuaUrlLabel: "OPC UA URL",
+                    overviewTitle: "概要詳細",
+                    detailsTitle: "PLCレジスタ詳細",
+                    totalMappings: "総マッピング数",
+                    configuredPlcs: "設定済みPLC",
+                    status: "設定ステータス",
+                    addMappingText: "新しいマッピングを追加",
+                    previewText: "JSONプレビュー",
+                    exportText: "JSONエクスポート",
+                    plcRegHeader: "PLCレジスタ",
+                    dataTypeHeader: "データタイプ",
+                    opcuaRegHeader: "OPC UAレジスタ",
+                    actionsHeader: "アクション",
+                    jsonModalTitle: "JSONプレビュー",
+                    currentLang: "JP"
+                }
+            };
+
+            let currentLanguage = 'en';
+            let sidebarOpen = false;
+            let overviewExpanded = false;
+            let detailsExpanded = false;
+
+            // Initialize date
+            function updateDate() {
+                const now = new Date();
+                const options = { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                };
+                document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', options);
+            }
+
+            // Language toggle functionality
+            function toggleLanguage() {
+                currentLanguage = currentLanguage === 'en' ? 'ja' : 'en';
+                updateLanguage();
+            }
+
+            function updateLanguage() {
+                const trans = translations[currentLanguage];
+                Object.keys(trans).forEach(key => {
+                    const element = document.getElementById(key);
+                    if (element) {
+                        element.textContent = trans[key];
+                    }
+                });
+            }
+
+            // Sidebar functionality
+            function toggleSidebar() {
+                sidebarOpen = !sidebarOpen;
+                const sidebar = document.getElementById('sidebar');
+                const overlay = document.getElementById('sidebarOverlay');
+                
+                if (sidebarOpen) {
+                    sidebar.classList.remove('sidebar-closed');
+                    sidebar.classList.add('sidebar-open');
+                    overlay.classList.remove('hidden');
+                } else {
+                    sidebar.classList.remove('sidebar-open');
+                    sidebar.classList.add('sidebar-closed');
+                    overlay.classList.add('hidden');
+                }
+            }
+
+            // Expandable sections
+            function toggleSection(sectionId, chevronId, expanded) {
+                const content = document.getElementById(sectionId);
+                const chevron = document.getElementById(chevronId);
+                
+                if (expanded) {
+                    content.style.maxHeight = content.scrollHeight + 'px';
+                    chevron.style.transform = 'rotate(180deg)';
+                } else {
+                    content.style.maxHeight = '0px';
+                    chevron.style.transform = 'rotate(0deg)';
+                }
+            }
+
+            // File upload functionality
+            function handleFileUpload(file) {
+                const progressContainer = document.getElementById('progressContainer');
+                const progressBar = document.getElementById('progressBar');
+                const progressPercent = document.getElementById('progressPercent');
+                const uploadCard = document.getElementById('uploadCard');
+                
+                progressContainer.classList.remove('hidden');
+                
+                // Simulate upload progress
+                let progress = 0;
+                const interval = setInterval(() => {
+                    progress += 10;
+                    progressBar.style.width = progress + '%';
+                    progressPercent.textContent = progress + '%';
+                    
+                    if (progress >= 100) {
+                        clearInterval(interval);
+                        setTimeout(() => {
+                            // TODO: Parse CSV/TXT file and populate table
+                            // TODO: Validate file structure (4 columns)
+                            // TODO: Update mappings table with file data
+                            uploadCard.style.display = 'none';
+                        }, 500);
+                    }
+                }, 100);
+            }
+
+            // Add new mapping row
+            function addMappingRow() {
+                const tbody = document.getElementById('mappingsTableBody');
+                const newRow = document.createElement('tr');
+                newRow.className = 'table-row border-t border-border fade-in';
+                newRow.innerHTML = `
+                    <td class="px-4 py-3">
+                        <input type="text" placeholder="Enter register address" class="w-full px-2 py-1 border border-input rounded text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                    </td>
+                    <td class="px-4 py-3">
+                        <select class="w-full px-2 py-1 border border-input rounded text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                            <option value="int16">int16</option>
+                            <option value="int32">int32</option>
+                            <option value="float32">float32</option>
+                            <option value="bool">bool</option>
+                            <option value="string">string</option>
+                        </select>
+                    </td>
+                    <td class="px-4 py-3">
+                        <input type="text" placeholder="Enter OPC UA register" class="w-full px-2 py-1 border border-input rounded text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                    </td>
+                    <td class="px-4 py-3">
+                        <button class="text-destructive hover:text-destructive/80 transition-colors" onclick="this.closest('tr').remove()">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(newRow);
+            }
+
+            // Generate JSON configuration
+            function generateJSON() {
+                const configFileName = document.getElementById('configFileName').value;
+                const plcName = document.getElementById('plcName').value;
+                const plcIp = document.getElementById('plcIp').value;
+                const opcuaUrl = document.getElementById('opcuaUrl').value;
+                
+                const mappingRows = document.querySelectorAll('#mappingsTableBody tr');
+                const addressMappings = [];
+                
+                mappingRows.forEach(row => {
+                    const inputs = row.querySelectorAll('input, select');
+                    if (inputs.length >= 3) {
+                        addressMappings.push({
+                            plc_reg_add: inputs[0].value,
+                            data_type: inputs[1].value,
+                            opcua_reg_add: inputs[2].value
+                        });
+                    }
+                });
+                
+                const config = {
+                    plcs: [{
+                        plc_name: plcName,
+                        plc_ip: plcIp,
+                        opcua_url: opcuaUrl,
+                        address_mappings: addressMappings
+                    }]
+                };
+                
+                return JSON.stringify(config, null, 2);
+            }
+
+            // Show JSON preview
+            function showJSONPreview() {
+                const modal = document.getElementById('jsonModal');
+                const preview = document.getElementById('jsonPreview');
+                preview.textContent = generateJSON();
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+
+            // Export JSON file
+            function exportJSON() {
+                const json = generateJSON();
+                const blob = new Blob([json], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = document.getElementById('configFileName').value;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+
+            // Event listeners
+            document.getElementById('menuToggle').addEventListener('click', toggleSidebar);
+            document.getElementById('sidebarOverlay').addEventListener('click', toggleSidebar);
+            document.getElementById('langToggle').addEventListener('click', toggleLanguage);
+            
+            document.getElementById('overviewToggle').addEventListener('click', () => {
+                overviewExpanded = !overviewExpanded;
+                toggleSection('overviewContent', 'overviewChevron', overviewExpanded);
+            });
+            
+            document.getElementById('detailsToggle').addEventListener('click', () => {
+                detailsExpanded = !detailsExpanded;
+                toggleSection('detailsContent', 'detailsChevron', detailsExpanded);
+            });
+            
+            document.getElementById('uploadZone').addEventListener('click', () => {
+                document.getElementById('fileInput').click();
+            });
+            
+            document.getElementById('fileInput').addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    handleFileUpload(e.target.files[0]);
+                }
+            });
+            
+            document.getElementById('addMappingBtn').addEventListener('click', addMappingRow);
+            document.getElementById('previewJsonBtn').addEventListener('click', showJSONPreview);
+            document.getElementById('exportJsonBtn').addEventListener('click', exportJSON);
+            
+            document.getElementById('closeJsonModal').addEventListener('click', () => {
+                const modal = document.getElementById('jsonModal');
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            });
+
+            // Initialize
+            updateDate();
+            updateLanguage();
+        })();
+    </script>
+</body>
+</html>

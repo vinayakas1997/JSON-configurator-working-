@@ -36,10 +36,17 @@ export function PlcConfigBuilder() {
   const [plcName, setPlcName] = useState("PLC1");
   const [plcIp, setPlcIp] = useState("192.168.2.2");
   const [opcuaUrl, setOpcuaUrl] = useState("opc.tcp://192.168.1.20:4840");
+  
+  // Helper function to get valid PLC number
+  const getValidPlcNo = (): number | null => {
+    const num = typeof plcNo === 'number' ? plcNo : parseInt(plcNo.toString());
+    return (!isNaN(num) && num > 0) ? num : null;
+  };
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [deselectedKeys, setDeselectedKeys] = useState<Set<string>>(new Set());
   const [registerSearchTerm, setRegisterSearchTerm] = useState("");
   const [addressMappings, setAddressMappings] = useState<AddressMapping[]>([
+    { plc_reg_add: "HEARTBEAT", data_type: "BOOL", opcua_reg_add: "P1_running", description: "heartbeat of the plc" },
     { plc_reg_add: "2.01", data_type: "BOOL", opcua_reg_add: "BOOL_VAR01" },
     { plc_reg_add: "C0001", data_type: "WORD", opcua_reg_add: "INT_VAR01" }
   ]);
@@ -70,6 +77,14 @@ export function PlcConfigBuilder() {
   useEffect(() => {
     const plcNumber = typeof plcNo === 'number' ? plcNo : parseInt(plcNo.toString()) || 1;
     const updatedMappings = addressMappings.map(mapping => {
+      // Special handling for heartbeat tag
+      if (mapping.opcua_reg_add.endsWith('_running')) {
+        return {
+          ...mapping,
+          opcua_reg_add: `P${plcNumber}_running`
+        };
+      }
+      
       const baseAddr = mapping.plc_reg_add.split('.')[0];
       let newOpcuaName: string;
       
@@ -148,6 +163,11 @@ export function PlcConfigBuilder() {
     // Remove duplicates based on OPC UA register name
     const deduplicatedMappings = dedupeByOpcuaName(filteredMappings, plcName);
 
+    const currentPlcNumber = typeof plcNo === 'number' ? plcNo : parseInt(plcNo.toString()) || 1;
+    
+    // Always include heartbeat at the top
+    const heartbeatLine = `P${currentPlcNumber}_running:BOOL;`;
+
     // Generate the OPCUA list format
     const opcuaLines = deduplicatedMappings.map(mapping => {
       const opcuaName = mapping.opcua_reg_add;
@@ -159,7 +179,7 @@ export function PlcConfigBuilder() {
       return `${opcuaName}:${opcuaType};`;
     });
 
-    return opcuaLines.join('\n');
+    return [heartbeatLine, ...opcuaLines].join('\n');
   };
 
   const generateJson = (): string => {
@@ -201,12 +221,24 @@ export function PlcConfigBuilder() {
     // Remove duplicates based on OPC UA register name (keep first occurrence)
     const deduplicatedMappings = dedupeByOpcuaName(filteredMappings, plcName);
 
+    const currentPlcNumber = typeof plcNo === 'number' ? plcNo : parseInt(plcNo.toString()) || 1;
+    
+    // Always include heartbeat at the top
+    const heartbeatMapping = {
+      plc_reg_add: "HEARTBEAT",
+      data_type: "bool",
+      opcua_reg_add: `P${currentPlcNumber}_running`,
+      description: "heartbeat of the plc",
+      Memory_Area: "H"
+    };
+    
     const config: ConfigFile = {
       plcs: [{
         plc_name: plcName,
+        plc_no: currentPlcNumber,
         plc_ip: plcIp,
         opcua_url: opcuaUrl,
-        address_mappings: deduplicatedMappings as any
+        address_mappings: [heartbeatMapping, ...deduplicatedMappings] as any
       }]
     };
     return JSON.stringify(config, null, 2);
@@ -220,8 +252,42 @@ export function PlcConfigBuilder() {
     // Keep the upload card visible after importing
   };
 
-  const handleExportJson = () => {
+  const handleExportJson = async () => {
     const json = generateJson();
+    
+    // Check if File System Access API is supported
+    if ('showSaveFilePicker' in window) {
+      try {
+        const fileHandle = await (window as any).showSaveFilePicker({
+          suggestedName: `${configFileName}.json`,
+          types: [
+            {
+              description: 'JSON files',
+              accept: {
+                'application/json': ['.json'],
+              },
+            },
+          ],
+        });
+        
+        const writable = await fileHandle.createWritable();
+        await writable.write(json);
+        await writable.close();
+        
+        toast({
+          title: "JSON Exported",
+          description: `Configuration saved to selected location as ${configFileName}.json`,
+        });
+        return;
+      } catch (error) {
+        // User cancelled or error occurred, fall back to default download
+        if ((error as Error).name !== 'AbortError') {
+          console.error('File save error:', error);
+        }
+      }
+    }
+    
+    // Fallback to traditional download method
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -234,7 +300,7 @@ export function PlcConfigBuilder() {
     
     toast({
       title: "JSON Exported",
-      description: `Configuration exported as ${configFileName}.json`,
+      description: `Configuration exported as ${configFileName}.json to Downloads folder`,
     });
   };
 
@@ -323,21 +389,23 @@ export function PlcConfigBuilder() {
       if (configData.plcs && configData.plcs.length > 0) {
         const plcConfig = configData.plcs[0];
         
-        // Restore basic configuration state
-        setPlcName(plcConfig.plc_name);
-        setPlcIp(plcConfig.plc_ip);
-        setOpcuaUrl(plcConfig.opcua_url);
-        setAddressMappings(plcConfig.address_mappings);
-        setConfigFileName(session.name);
-        setConfigDescription(session.description || "");
-        
-        // Restore extended state if available
+        // Restore PLC No FIRST before other state to avoid useEffect conflicts
         if (configData.plc_no !== undefined) {
           console.log('Setting PLC No to:', configData.plc_no);
           setPlcNo(configData.plc_no);
         } else {
           console.log('PLC No not found in session data, configData.plc_no is:', configData.plc_no);
+          setPlcNo(1); // Set default if not found
         }
+        
+        // Restore basic configuration state
+        setPlcName(plcConfig.plc_name);
+        setPlcIp(plcConfig.plc_ip);
+        setOpcuaUrl(plcConfig.opcua_url);
+        setConfigFileName(session.name);
+        setConfigDescription(session.description || "");
+        
+        // Restore extended state if available
         if (configData.selected_memory_areas) {
           setSelectedMemoryAreas(new Set(configData.selected_memory_areas));
         }
@@ -350,6 +418,10 @@ export function PlcConfigBuilder() {
         if (configData.parse_result) {
           setParseResult(configData.parse_result);
         }
+        
+        // Set address mappings LAST to ensure PLC No is already set
+        // This prevents the useEffect from overwriting the loaded mappings
+        setAddressMappings(plcConfig.address_mappings);
         
         // Set current session ID for future saves
         setCurrentSessionId(sessionId);
@@ -376,6 +448,7 @@ export function PlcConfigBuilder() {
       setPlcIp("192.168.2.2");
       setOpcuaUrl("opc.tcp://192.168.1.20:4840");
       setAddressMappings([
+        { plc_reg_add: "HEARTBEAT", data_type: "BOOL", opcua_reg_add: "P1_running", description: "heartbeat of the plc" },
         { plc_reg_add: "2.01", data_type: "BOOL", opcua_reg_add: "BOOL_VAR01" },
         { plc_reg_add: "C0001", data_type: "WORD", opcua_reg_add: "INT_VAR01" }
       ]);
@@ -581,11 +654,26 @@ export function PlcConfigBuilder() {
           </CardContent>
         </Card>
 
+        {/* PLC Number Validation Warning */}
+        {!getValidPlcNo() && (
+          <Card className="mb-6 border-yellow-200 bg-yellow-50 dark:bg-yellow-900/20" data-testid="card-plc-warning">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-2 text-yellow-800 dark:text-yellow-200">
+                <div className="text-lg">⚠️</div>
+                <p className="text-sm font-medium">
+                  Please enter a valid PLC number before uploading files. The current value "{plcNo}" is invalid.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* File Upload Card */}
         {showUploadCard && (
-          <FileUploadCard 
+          <FileUploadCard
             onFileProcessed={(mappings, result) => handleFileProcessed(mappings, result)}
-            plcNo={typeof plcNo === 'number' ? plcNo : parseInt(plcNo.toString()) || 1}
+            plcNo={getValidPlcNo() || 1}
+            disabled={!getValidPlcNo()}
           />
         )}
 

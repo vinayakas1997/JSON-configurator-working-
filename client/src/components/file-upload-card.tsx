@@ -15,9 +15,10 @@ interface FileUploadCardProps {
   onFileProcessed: (mappings: AddressMapping[], result?: ParseResult) => void;
   onClose?: () => void;
   plcNo?: number;
+  disabled?: boolean;
 }
 
-export function FileUploadCard({ onFileProcessed, onClose, plcNo = 1 }: FileUploadCardProps) {
+export function FileUploadCard({ onFileProcessed, onClose, plcNo = 1, disabled = false }: FileUploadCardProps) {
   const { t, language } = useLanguage();
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
@@ -32,6 +33,16 @@ export function FileUploadCard({ onFileProcessed, onClose, plcNo = 1 }: FileUplo
       toast({
         title: t('fileUploadError'),
         description: 'Please upload a CSV or TXT file',
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate plcNo before processing
+    if (isNaN(plcNo) || plcNo <= 0) {
+      toast({
+        title: "Invalid PLC Number",
+        description: "Please enter a valid PLC number before uploading files",
         variant: "destructive",
       });
       return;
@@ -241,26 +252,40 @@ export function FileUploadCard({ onFileProcessed, onClose, plcNo = 1 }: FileUplo
         </div>
         
         {!parseResult && (
-          <div 
-            className="upload-zone rounded-lg p-8 text-center cursor-pointer"
-            onClick={() => document.getElementById('fileInput')?.click()}
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
+          <div
+            className={`upload-zone rounded-lg p-8 text-center ${
+              disabled ? 'opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800' : 'cursor-pointer'
+            }`}
+            onClick={disabled ? undefined : () => document.getElementById('fileInput')?.click()}
+            onDrop={disabled ? undefined : handleDrop}
+            onDragOver={disabled ? undefined : handleDragOver}
             data-testid="zone-file-upload"
           >
-            <CloudUpload className="w-16 h-16 text-muted-foreground mb-4 mx-auto" />
-            <p className="text-lg font-medium text-foreground mb-2" data-testid="text-upload-main">
+            <CloudUpload className={`w-16 h-16 mb-4 mx-auto ${
+              disabled ? 'text-gray-400' : 'text-muted-foreground'
+            }`} />
+            {disabled && (
+              <p className="text-red-500 text-sm mb-2 font-medium">
+                Please enter a valid PLC number first
+              </p>
+            )}
+            <p className={`text-lg font-medium mb-2 ${
+              disabled ? 'text-gray-500' : 'text-foreground'
+            }`} data-testid="text-upload-main">
               {t('uploadText')}
             </p>
-            <p className="text-muted-foreground" data-testid="text-upload-sub">
+            <p className={`${
+              disabled ? 'text-gray-400' : 'text-muted-foreground'
+            }`} data-testid="text-upload-sub">
               {t('uploadSubtext')}
             </p>
-            <input 
-              type="file" 
-              id="fileInput" 
-              className="hidden" 
+            <input
+              type="file"
+              id="fileInput"
+              className="hidden"
               accept=".csv,.txt"
-              onChange={handleFileSelect}
+              onChange={disabled ? undefined : handleFileSelect}
+              disabled={disabled}
               data-testid="input-file"
             />
           </div>

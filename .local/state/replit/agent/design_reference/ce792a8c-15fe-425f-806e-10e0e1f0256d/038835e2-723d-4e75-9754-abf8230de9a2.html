@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PLC Configuration Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                borderRadius: {
+                    lg: "var(--radius)",
+                    md: "calc(var(--radius) - 2px)",
+                    sm: "calc(var(--radius) - 4px)",
+                },
+                colors: {
+                    background: "var(--background)",
+                    foreground: "var(--foreground)",
+                    card: {
+                        DEFAULT: "var(--card)",
+                        foreground: "var(--card-foreground)",
+                    },
+                    popover: {
+                        DEFAULT: "var(--popover)",
+                        foreground: "var(--popover-foreground)",
+                    },
+                    primary: {
+                        DEFAULT: "var(--primary)",
+                        foreground: "var(--primary-foreground)",
+                    },
+                    secondary: {
+                        DEFAULT: "var(--secondary)",
+                        foreground: "var(--secondary-foreground)",
+                    },
+                    muted: {
+                        DEFAULT: "var(--muted)",
+                        foreground: "var(--muted-foreground)",
+                    },
+                    accent: {
+                        DEFAULT: "var(--accent)",
+                        foreground: "var(--accent-foreground)",
+                    },
+                    destructive: {
+                        DEFAULT: "var(--destructive)",
+                        foreground: "var(--destructive-foreground)",
+                    },
+                    border: "var(--border)",
+                    input: "var(--input)",
+                    ring: "var(--ring)",
+                }
+            },
+            fontFamily: {
+                sans: ["Inter", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
+            }
+        }
+    };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --background: hsl(210 40% 98%);
+            --foreground: hsl(222.2 84% 4.9%);
+            --card: hsl(0 0% 100%);
+            --card-foreground: hsl(222.2 84% 4.9%);
+            --popover: hsl(0 0% 100%);
+            --popover-foreground: hsl(222.2 84% 4.9%);
+            --primary: hsl(221.2 83.2% 53.3%);
+            --primary-foreground: hsl(210 40% 98%);
+            --secondary: hsl(210 40% 96%);
+            --secondary-foreground: hsl(222.2 84% 4.9%);
+            --muted: hsl(210 40% 96%);
+            --muted-foreground: hsl(215.4 16.3% 46.9%);
+            --accent: hsl(210 40% 96%);
+            --accent-foreground: hsl(222.2 84% 4.9%);
+            --destructive: hsl(0 84.2% 60.2%);
+            --destructive-foreground: hsl(210 40% 98%);
+            --border: hsl(214.3 31.8% 91.4%);
+            --input: hsl(214.3 31.8% 91.4%);
+            --ring: hsl(221.2 83.2% 53.3%);
+            --radius: 0.5rem;
+        }
+        
+        .drag-over {
+            border-color: var(--primary);
+            background-color: hsl(221.2 83.2% 95%);
+        }
+        
+        .json-preview {
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+
+        .table-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .table-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .table-container::-webkit-scrollbar-track {
+            background: var(--muted);
+            border-radius: 4px;
+        }
+        
+        .table-container::-webkit-scrollbar-thumb {
+            background: var(--muted-foreground);
+            border-radius: 4px;
+        }
+        
+        .table-container::-webkit-scrollbar-thumb:hover {
+            background: var(--foreground);
+        }
+    </style>
+</head>
+<body class="bg-background text-foreground font-sans">
+    <!-- Header -->
+    <header class="bg-card border-b border-border shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-microchip text-primary text-xl"></i>
+                    <h1 class="text-xl font-semibold text-foreground">PLC Configuration Generator</h1>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button class="flex items-center space-x-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors">
+                        <i class="fas fa-eye text-sm"></i>
+                        <span class="text-sm font-medium">Preview JSON</span>
+                    </button>
+                    <button class="flex items-center space-x-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">
+                        <i class="fas fa-download text-sm"></i>
+                        <span class="text-sm font-medium">Export Config</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Main Content -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Configuration Settings -->
+                <div class="bg-card rounded-lg border border-border shadow-sm">
+                    <div class="p-6 border-b border-border">
+                        <h2 class="text-lg font-semibold text-foreground">Configuration Settings</h2>
+                        <p class="text-sm text-muted-foreground mt-1">Set your project name and output filename</p>
+                    </div>
+                    <div class="p-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-foreground mb-2">Project Name</label>
+                                <input type="text" placeholder="My PLC Project" class="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-foreground mb-2">Output Filename</label>
+                                <input type="text" value="plc_config.json" class="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PLC Configurations -->
+                <div class="bg-card rounded-lg border border-border shadow-sm">
+                    <div class="p-6 border-b border-border">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h2 class="text-lg font-semibold text-foreground">PLC Configurations</h2>
+                                <p class="text-sm text-muted-foreground mt-1">Add and configure your PLC devices</p>
+                            </div>
+                            <button class="flex items-center space-x-2 px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-sm">
+                                <i class="fas fa-plus text-xs"></i>
+                                <span>Add PLC</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- PLC Entry 1 -->
+                    <div class="border-b border-border">
+                        <div class="p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-md font-medium text-foreground flex items-center space-x-2">
+                                    <i class="fas fa-microchip text-primary text-sm"></i>
+                                    <span>PLC Device #1</span>
+                                </h3>
+                                <button class="text-destructive hover:text-destructive/80 transition-colors">
+                                    <i class="fas fa-trash text-sm"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                <div>
+                                    <label class="block text-sm font-medium text-foreground mb-2">PLC Name</label>
+                                    <input type="text" value="PLC1" class="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-foreground mb-2">PLC IP Address</label>
+                                    <input type="text" value="192.168.2.2" class="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-foreground mb-2">OPC UA URL</label>
+                                    <input type="text" value="opc.tcp://192.168.1.20:4840" class="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground">
+                                </div>
+                            </div>
+
+                            <!-- Address Mappings -->
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="text-sm font-medium text-foreground">Address Mappings</h4>
+                                    <div class="flex items-center space-x-2">
+                                        <button class="flex items-center space-x-2 px-3 py-1.5 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors text-sm">
+                                            <i class="fas fa-upload text-xs"></i>
+                                            <span>Import File</span>
+                                        </button>
+                                        <button class="flex items-center space-x-2 px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-sm">
+                                            <i class="fas fa-plus text-xs"></i>
+                                            <span>Add Row</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- File Upload Area -->
+                                <div class="border-2 border-dashed border-border rounded-lg p-4 text-center bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer">
+                                    <div class="flex flex-col items-center space-y-2">
+                                        <i class="fas fa-cloud-upload-alt text-2xl text-muted-foreground"></i>
+                                        <p class="text-sm text-muted-foreground">
+                                            <span class="font-medium text-primary">Click to upload</span> or drag and drop
+                                        </p>
+                                        <p class="text-xs text-muted-foreground">CSV, TXT files with columns: plc_reg_addr, data_type, opcua_reg_add</p>
+                                    </div>
+                                </div>
+
+                                <!-- Mappings Table -->
+                                <div class="table-container border border-border rounded-md">
+                                    <table class="w-full text-sm">
+                                        <thead class="bg-muted">
+                                            <tr>
+                                                <th class="px-4 py-3 text-left font-medium text-foreground">PLC Register Address</th>
+                                                <th class="px-4 py-3 text-left font-medium text-foreground">Data Type</th>
+                                                <th class="px-4 py-3 text-left font-medium text-foreground">OPC UA Register Address</th>
+                                                <th class="px-4 py-3 text-center font-medium text-foreground w-20">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-border">
+                                            <tr class="hover:bg-muted/50 transition-colors" data-mock="true">
+                                                <td class="px-4 py-3">
+                                                    <input type="text" value="2.01" class="w-full px-2 py-1 border border-input rounded focus:outline-none focus:ring-1 focus:ring-ring bg-background text-foreground">
+                                                </td>
+                                                <td class="px-4 py-3">
+                                                    <select class="w-full px-2 py-1 border border-input rounded focus:outline-none focus:ring-1 focus:ring-ring bg-background text-foreground">
+                                                        <option>int16</option>
+                                                        <option>int32</option>
+                                                        <option>float32</option>
+                                                        <option>bool</option>
+                                                        <option>string</option>
+                                                    </select>
+                                                </td>
+                                                <td class="px-4 py-3">
+                                                    <input type="text" value="BOOL_VAR01" class="w-full px-2 py-1 border border-input rounded focus:outline-none focus:ring-1 focus:ring-ring bg-background text-foreground">
+                                                </td>
+                                                <td class="px-4 py-3 text-center">
+                                                    <button class="text-destructive hover:text-destructive/80 transition-colors">
+                                                        <i class="fas fa-trash text-xs"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            <tr class="hover:bg-muted/50 transition-colors" data-mock="true">
+                                                <td class="px-4 py-3">
+                                                    <input type="text" value="C0001" class="w-full px-2 py-1 border border-input rounded focus:outline-none focus:ring-1 focus:ring-ring bg-background text-foreground">
+                                                </td>
+                                                <td class="px-4 py-3">
+                                                    <select class="w-full px-2 py-1 border border-input rounded focus:outline-none focus:ring-1 focus:ring-ring bg-background text-foreground">
+                                                        <option>int16</option>
+                                                        <option>int32</option>
+                                                        <option>float32</option>
+                                                        <option>bool</option>
+                                                        <option>string</option>
+                                                    </select>
+                                                </td>
+                                                <td class="px-4 py-3">
+                                                    <input type="text" value="INT_VAR01" class="w-full px-2 py-1 border border-input rounded focus:outline-none focus:ring-1 focus:ring-ring bg-background text-foreground">
+                                                </td>
+                                                <td class="px-4 py-3 text-center">
+                                                    <button class="text-destructive hover:text-destructive/80 transition-colors">
+                                                        <i class="fas fa-trash text-xs"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PLC Entry 2 -->
+                    <div class="border-b border-border">
+                        <div class="p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-md font-medium text-foreground flex items-center space-x-2">
+                                    <i class="fas fa-microchip text-primary text-sm"></i>
+                                    <span>PLC Device #2</span>
+                                </h3>
+                                <button class="text-destructive hover:text-destructive/80 transition-colors">
+                                    <i class="fas fa-trash text-sm"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                <div>
+                                    <label class="block text-sm font-medium text-foreground mb-2">PLC Name</label>
+                                    <input type="text" value="PLC2" class="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-foreground mb-2">PLC IP Address</label>
+                                    <input type="text" value="192.168.2.4" class="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-foreground mb-2">OPC UA URL</label>
+                                    <input type="text" value="opc.tcp://192.168.1.20:4840" class="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground">
+                                </div>
+                            </div>
+
+                            <!-- Address Mappings -->
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="text-sm font-medium text-foreground">Address Mappings</h4>
+                                    <div class="flex items-center space-x-2">
+                                        <button class="flex items-center space-x-2 px-3 py-1.5 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors text-sm">
+                                            <i class="fas fa-upload text-xs"></i>
+                                            <span>Import File</span>
+                                        </button>
+                                        <button class="flex items-center space-x-2 px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-sm">
+                                            <i class="fas fa-plus text-xs"></i>
+                                            <span>Add Row</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Mappings Table -->
+                                <div class="table-container border border-border rounded-md">
+                                    <table class="w-full text-sm">
+                                        <thead class="bg-muted">
+                                            <tr>
+                                                <th class="px-4 py-3 text-left font-medium text-foreground">PLC Register Address</th>
+                                                <th class="px-4 py-3 text-left font-medium text-foreground">Data Type</th>
+                                                <th class="px-4 py-3 text-left font-medium text-foreground">OPC UA Register Address</th>
+                                                <th class="px-4 py-3 text-center font-medium text-foreground w-20">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-border">
+                                            <tr class="hover:bg-muted/50 transition-colors" data-mock="true">
+                                                <td class="px-4 py-3">
+                                                    <input type="text" value="2.01" class="w-full px-2 py-1 border border-input rounded focus:outline-none focus:ring-1 focus:ring-ring bg-background text-foreground">
+                                                </td>
+                                                <td class="px-4 py-3">
+                                                    <select class="w-full px-2 py-1 border border-input rounded focus:outline-none focus:ring-1 focus:ring-ring bg-background text-foreground">
+                                                        <option>int16</option>
+                                                        <option>int32</option>
+                                                        <option>float32</option>
+                                                        <option>bool</option>
+                                                        <option>string</option>
+                                                    </select>
+                                                </td>
+                                                <td class="px-4 py-3">
+                                                    <input type="text" value="BOOL_VAR03" class="w-full px-2 py-1 border border-input rounded focus:outline-none focus:ring-1 focus:ring-ring bg-background text-foreground">
+                                                </td>
+                                                <td class="px-4 py-3 text-center">
+                                                    <button class="text-destructive hover:text-destructive/80 transition-colors">
+                                                        <i class="fas fa-trash text-xs"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            <tr class="hover:bg-muted/50 transition-colors" data-mock="true">
+                                                <td class="px-4 py-3">
+                                                    <input type="text" value="C0001" class="w-full px-2 py-1 border border-input rounded focus:outline-none focus:ring-1 focus:ring-ring bg-background text-foreground">
+                                                </td>
+                                                <td class="px-4 py-3">
+                                                    <select class="w-full px-2 py-1 border border-input rounded focus:outline-none focus:ring-1 focus:ring-ring bg-background text-foreground">
+                                                        <option>int16</option>
+                                                        <option>int32</option>
+                                                        <option>float32</option>
+                                                        <option>bool</option>
+                                                        <option>string</option>
+                                                    </select>
+                                                </td>
+                                                <td class="px-4 py-3">
+                                                    <input type="text" value="INT_VAR04" class="w-full px-2 py-1 border border-input rounded focus:outline-none focus:ring-1 focus:ring-ring bg-background text-foreground">
+                                                </td>
+                                                <td class="px-4 py-3 text-center">
+                                                    <button class="text-destructive hover:text-destructive/80 transition-colors">
+                                                        <i class="fas fa-trash text-xs"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Export Actions -->
+                <div class="bg-card rounded-lg border border-border shadow-sm">
+                    <div class="p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-lg font-medium text-foreground">Export Configuration</h3>
+                                <p class="text-sm text-muted-foreground mt-1">Generate and download your PLC configuration file</p>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <button class="flex items-center space-x-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors">
+                                    <i class="fas fa-check text-sm"></i>
+                                    <span>Validate Config</span>
+                                </button>
+                                <button class="flex items-center space-x-2 px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors font-medium">
+                                    <i class="fas fa-download text-sm"></i>
+                                    <span>Download JSON</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- JSON Preview Sidebar -->
+            <div class="lg:col-span-1">
+                <div class="bg-card rounded-lg border border-border shadow-sm sticky top-8">
+                    <div class="p-4 border-b border-border">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-md font-medium text-foreground">JSON Preview</h3>
+                            <button class="text-muted-foreground hover:text-foreground transition-colors">
+                                <i class="fas fa-copy text-sm"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <pre class="json-preview text-xs bg-muted rounded-md p-3 overflow-x-auto text-muted-foreground leading-relaxed" data-mock="true">{
+  "plcs": [
+    {
+      "plc_name": "PLC1",
+      "plc_ip": "192.168.2.2",
+      "opcua_url": "opc.tcp://192.168.1.20:4840",
+      "address_mappings": [
+        {
+          "plc_reg_add": "2.01",
+          "data_type": "int16",
+          "opcua_reg_add": "BOOL_VAR01"
+        },
+        {
+          "plc_reg_add": "C0001",
+          "data_type": "int16",
+          "opcua_reg_add": "INT_VAR01"
+        }
+      ]
+    },
+    {
+      "plc_name": "PLC2",
+      "plc_ip": "192.168.2.4",
+      "opcua_url": "opc.tcp://192.168.1.20:4840",
+      "address_mappings": [
+        {
+          "plc_reg_add": "2.01",
+          "data_type": "int16",
+          "opcua_reg_add": "BOOL_VAR03"
+        },
+        {
+          "plc_reg_add": "C0001",
+          "data_type": "int16",
+          "opcua_reg_add": "INT_VAR04"
+        }
+      ]
+    }
+  ]
+}</pre>
+                    </div>
+                    <div class="p-4 border-t border-border">
+                        <div class="flex items-center space-x-2 text-xs text-muted-foreground">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Preview updates in real-time as you edit</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Validation Status -->
+                <div class="bg-card rounded-lg border border-border shadow-sm mt-4">
+                    <div class="p-4">
+                        <h4 class="text-sm font-medium text-foreground mb-3">Validation Status</h4>
+                        <div class="space-y-2">
+                            <div class="flex items-center space-x-2">
+                                <i class="fas fa-check-circle text-green-500 text-sm"></i>
+                                <span class="text-sm text-foreground">All IP addresses are valid</span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <i class="fas fa-check-circle text-green-500 text-sm"></i>
+                                <span class="text-sm text-foreground">OPC UA URLs formatted correctly</span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <i class="fas fa-check-circle text-green-500 text-sm"></i>
+                                <span class="text-sm text-foreground">All required fields completed</span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <i class="fas fa-exclamation-triangle text-yellow-500 text-sm"></i>
+                                <span class="text-sm text-foreground">2 duplicate register addresses found</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Input (Hidden) -->
+    <input type="file" id="file-input" accept=".csv,.txt" style="display: none;">
+
+    <script>
+        // TODO: Implement file upload functionality
+        // TODO: Implement JSON generation and download
+        // TODO: Implement form validation
+        // TODO: Implement real-time JSON preview updates
+        // TODO: Implement drag and drop for file upload areas
+        // TODO: Implement add/remove PLC functionality
+        // TODO: Implement add/remove address mapping rows
+        // TODO: Implement CSV/TXT file parsing
+        
+        (function() {
+            // Basic UI interactions for demonstration
+            const fileUploadAreas = document.querySelectorAll('.border-dashed');
+            const fileInput = document.getElementById('file-input');
+            
+            // File upload area interactions
+            fileUploadAreas.forEach(area => {
+                area.addEventListener('click', () => {
+                    fileInput.click();
+                });
+                
+                area.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    area.classList.add('drag-over');
+                });
+                
+                area.addEventListener('dragleave', () => {
+                    area.classList.remove('drag-over');
+                });
+                
+                area.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    area.classList.remove('drag-over');
+                    // TODO: Handle file drop
+                });
+            });
+
+            // Add row functionality demo
+            const addRowButtons = document.querySelectorAll('button:has(.fa-plus)');
+            addRowButtons.forEach(button => {
+                if (button.textContent.includes('Add Row')) {
+                    button.addEventListener('click', () => {
+                        console.log('Add new address mapping row');
+                        // TODO: Implement row addition
+                    });
+                }
+            });
+
+            // Delete row functionality demo
+            const deleteButtons = document.querySelectorAll('button:has(.fa-trash)');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', (e) => {
+                    console.log('Delete row or PLC');
+                    // TODO: Implement deletion with confirmation
+                });
+            });
+
+            // Real-time validation demo
+            const inputs = document.querySelectorAll('input[type="text"]');
+            inputs.forEach(input => {
+                input.addEventListener('blur', () => {
+                    // TODO: Implement field-level validation
+                    // TODO: Update JSON preview
+                    // TODO: Update validation status
+                });
+            });
+        })();
+    </script>
+</body>
+</html>

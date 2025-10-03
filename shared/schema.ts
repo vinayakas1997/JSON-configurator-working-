@@ -21,13 +21,22 @@ export const addressMappingSchema = z.object({
 
 export const plcConfigSchema = z.object({
   plc_name: z.string().min(1, "PLC name is required"),
+  plc_no: z.number().min(1, "PLC number is required"),
   plc_ip: z.string().ip("Invalid IP address"),
   opcua_url: z.string().url("Invalid OPC UA URL"),
   address_mappings: z.array(addressMappingSchema)
 });
 
 export const configFileSchema = z.object({
-  plcs: z.array(plcConfigSchema)
+  plcs: z.array(plcConfigSchema),
+  // Additional fields for session state restoration
+  plc_no: z.number().optional(),
+  config_file_name: z.string().optional(),
+  config_description: z.string().optional(),
+  selected_memory_areas: z.array(z.string()).optional(),
+  selected_registers: z.array(z.number()).optional(),
+  deselected_keys: z.array(z.string()).optional(),
+  parse_result: z.any().optional() // ParseResult type - using any for flexibility
 });
 
 // SQLite tables for the actual implementation
