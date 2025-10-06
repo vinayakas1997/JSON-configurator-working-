@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, Fragment } from "react";
-import { Trash2, Plus, ChevronDown, ChevronRight, Upload, X } from "lucide-react";
+import { useState, useEffect, useMemo, Fragment, useCallback, memo } from "react";
+import { Trash2, Plus, ChevronDown, ChevronRight, Upload, X, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -8,6 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
 import { generateOpcuaName } from "@/lib/plc-parser";
+import { useDebouncedCallback } from "@/hooks/use-debounce";
 import Papa from "papaparse";
 import type { AddressMapping } from "@shared/schema";
 
@@ -23,15 +24,15 @@ interface AddressMappingsTableProps {
 }
 
 // 16-bit grid component for boolean channel visualization
-function BooleanChannelGrid({ 
-  plcAddress, 
-  selectedBits = [], 
-  onBitToggle 
-}: { 
-  plcAddress: string; 
-  selectedBits?: number[]; 
-  onBitToggle?: (bit: number) => void; 
-}) {
+const BooleanChannelGrid = memo(({
+  plcAddress,
+  selectedBits = [],
+  onBitToggle
+}: {
+  plcAddress: string;
+  selectedBits?: number[];
+  onBitToggle?: (bit: number) => void;
+}) => {
   // Extract base address and determine which bits are used
   const baseAddress = plcAddress.split('.')[0];
   const usedBits = selectedBits;
@@ -91,7 +92,256 @@ function BooleanChannelGrid({
       </div>
     </div>
   );
-}
+});
+
+BooleanChannelGrid.displayName = 'BooleanChannelGrid';
+
+// Optimized table row component with React.memo
+const TableRow = memo(({
+  mapping,
+  originalIndex,
+  isBoolChannelEntry,
+  isModifiedChannelEntry,
+  isExpanded,
+  selectedBits,
+  modifiedBits,
+  modifiedComment,
+  existingBitData,
+  isSelected,
+  onToggleSelection,
+  onToggleExpansion,
+  onUpdateMapping,
+  onRemoveMapping,
+  onToggleBit,
+  onToggleModifiedChannelBit,
+  onUpdateModifiedChannelComment,
+  t
+}: {
+  mapping: AddressMapping;
+  originalIndex: number;
+  isBoolChannelEntry: boolean;
+  isModifiedChannelEntry: boolean;
+  isExpanded: boolean;
+  selectedBits: Set<number>;
+  modifiedBits: Set<number>;
+  modifiedComment: string;
+  existingBitData: { boolBits: number[], modifiedBits: number[] };
+  isSelected: boolean;
+  onToggleSelection: (index: number) => void;
+  onToggleExpansion: (index: number) => void;
+  onUpdateMapping: (index: number, field: keyof AddressMapping, value: string) => void;
+  onRemoveMapping: (index: number) => void;
+  onToggleBit: (channelIndex: number, bitNumber: number) => void;
+  onToggleModifiedChannelBit: (mappingIndex: number, bitIndex: number) => void;
+  onUpdateModifiedChannelComment: (mappingIndex: number, comment: string) => void;
+  t: (key: string) => string;
+}) => {
+  const baseAddress = mapping.plc_reg_add.split('.')[0];
+  
+  return (
+    <Fragment>
+      <tr
+        className={`table-row border-t border-border fade-in ${
+          isBoolChannelEntry ? 'bg-orange-50 dark:bg-orange-900/20' : isModifiedChannelEntry ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+        }`}
+        data-testid={`row-mapping-${originalIndex}`}
+      >
+        <td className="px-4 py-3">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={() => onToggleSelection(originalIndex)}
+              data-testid={`checkbox-select-${originalIndex}`}
+            />
+            {(isBoolChannelEntry || isModifiedChannelEntry) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onToggleExpansion(originalIndex)}
+                className="p-1 h-6 w-6"
+                data-testid={`button-expand-${originalIndex}`}
+              >
+                {isExpanded ? (
+                  <ChevronDown className="w-3 h-3" />
+                ) : (
+                  <ChevronRight className="w-3 h-3" />
+                )}
+              </Button>
+            )}
+          </div>
+        </td>
+        <td className="px-4 py-3">
+          <Input
+            value={mapping.plc_reg_add}
+            onChange={(e) => onUpdateMapping(originalIndex, 'plc_reg_add', e.target.value)}
+            placeholder={t('enterRegisterAddress')}
+            className="text-sm"
+            data-testid={`input-plc-reg-${originalIndex}`}
+          />
+        </td>
+        <td className="px-4 py-3">
+          <Select
+            value={mapping.data_type}
+            onValueChange={(value: AddressMapping['data_type']) =>
+              onUpdateMapping(originalIndex, 'data_type', value)
+            }
+          >
+            <SelectTrigger className="text-sm" data-testid={`select-data-type-${originalIndex}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="CHANNEL">CHANNEL</SelectItem>
+              <SelectItem value="modified channel">MODIFIED CHANNEL</SelectItem>
+              <SelectItem value="BOOL">BOOL</SelectItem>
+              <SelectItem value="WORD">WORD</SelectItem>
+              <SelectItem value="UDINT">UDINT</SelectItem>
+              <SelectItem value="DWORD">DWORD</SelectItem>
+              <SelectItem value="INT">INT</SelectItem>
+              <SelectItem value="REAL">REAL</SelectItem>
+              <SelectItem value="LREAL">LREAL</SelectItem>
+              <SelectItem value="int16">int16</SelectItem>
+              <SelectItem value="int32">int32</SelectItem>
+              <SelectItem value="float32">float32</SelectItem>
+              <SelectItem value="bool">bool</SelectItem>
+              <SelectItem value="string">string</SelectItem>
+            </SelectContent>
+          </Select>
+        </td>
+        <td className="px-4 py-3">
+          <Input
+            value={mapping.opcua_reg_add}
+            onChange={(e) => onUpdateMapping(originalIndex, 'opcua_reg_add', e.target.value)}
+            placeholder={t('enterOpcuaRegister')}
+            className="text-sm"
+            data-testid={`input-opcua-reg-${originalIndex}`}
+          />
+        </td>
+        <td className="px-4 py-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onRemoveMapping(originalIndex)}
+            className="text-destructive hover:text-destructive/80 hover:bg-destructive/10"
+            data-testid={`button-delete-mapping-${originalIndex}`}
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </td>
+      </tr>
+      {/* Expandable Boolean Channel Grid */}
+      {isBoolChannelEntry && isExpanded && (
+        <tr data-testid={`row-expanded-${originalIndex}`}>
+          <td colSpan={5} className="px-4 py-0 bg-orange-50 dark:bg-orange-900/20">
+            <BooleanChannelGrid
+              plcAddress={mapping.plc_reg_add}
+              selectedBits={Array.from(selectedBits)}
+              onBitToggle={(bit) => onToggleBit(originalIndex, bit)}
+            />
+          </td>
+        </tr>
+      )}
+      {/* Expandable Modified Channel Interface */}
+      {isModifiedChannelEntry && isExpanded && (
+        <tr data-testid={`row-expanded-modified-${originalIndex}`}>
+          <td colSpan={5} className="px-4 py-0 bg-blue-50 dark:bg-blue-900/20">
+            <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded border-l-4 border-blue-500">
+              <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+                Modified Channel Configuration - Base: {baseAddress}
+              </h4>
+              <div className="space-y-4">
+                {/* Bit Selection Grid */}
+                <div className="space-y-1">
+                  <div className="text-xs text-blue-700 dark:text-blue-300 mb-2">
+                    Select Required Bits:
+                    {(existingBitData.boolBits.length > 0 || existingBitData.modifiedBits.length > 0) && (
+                      <span className="ml-2 text-orange-600 dark:text-orange-400">
+                        (Orange = in boolean channel, Yellow = in other modified channels)
+                      </span>
+                    )}
+                  </div>
+                  {/* Top row: bits 15-8 */}
+                  <div className="flex space-x-1">
+                    <span className="text-xs font-mono text-muted-foreground w-8">15</span>
+                    {Array.from({ length: 8 }, (_, i) => {
+                      const bitIndex = 15 - i;
+                      const isSelected = modifiedBits.has(bitIndex);
+                      const isBoolExisting = existingBitData.boolBits.includes(bitIndex);
+                      const isModifiedExisting = existingBitData.modifiedBits.includes(bitIndex);
+                      return (
+                        <button
+                          key={bitIndex}
+                          onClick={() => onToggleModifiedChannelBit(originalIndex, bitIndex)}
+                          className={`w-6 h-6 text-xs font-mono border rounded ${
+                            isSelected
+                              ? 'bg-blue-500 text-white border-blue-600'
+                              : isBoolExisting
+                              ? 'bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200 border-orange-400 dark:border-orange-600 hover:bg-orange-300 dark:hover:bg-orange-700'
+                              : isModifiedExisting
+                              ? 'bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200 border-yellow-400 dark:border-yellow-600 hover:bg-yellow-300 dark:hover:bg-yellow-700'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-500 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          }`}
+                          data-testid={`modified-bit-${mapping.plc_reg_add}-${bitIndex}`}
+                          title={isBoolExisting ? 'Bit already in use by boolean channel' : isModifiedExisting ? 'Bit selected in another modified channel' : ''}
+                        >
+                          {bitIndex}
+                        </button>
+                      );
+                    })}
+                    <span className="text-xs font-mono text-muted-foreground w-8">8</span>
+                  </div>
+                  {/* Bottom row: bits 7-0 */}
+                  <div className="flex space-x-1">
+                    <span className="text-xs font-mono text-muted-foreground w-8">7</span>
+                    {Array.from({ length: 8 }, (_, i) => {
+                      const bitIndex = 7 - i;
+                      const isSelected = modifiedBits.has(bitIndex);
+                      const isBoolExisting = existingBitData.boolBits.includes(bitIndex);
+                      const isModifiedExisting = existingBitData.modifiedBits.includes(bitIndex);
+                      return (
+                        <button
+                          key={bitIndex}
+                          onClick={() => onToggleModifiedChannelBit(originalIndex, bitIndex)}
+                          className={`w-6 h-6 text-xs font-mono border rounded ${
+                            isSelected
+                              ? 'bg-blue-500 text-white border-blue-600'
+                              : isBoolExisting
+                              ? 'bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200 border-orange-400 dark:border-orange-600 hover:bg-orange-300 dark:hover:bg-orange-700'
+                              : isModifiedExisting
+                              ? 'bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200 border-yellow-400 dark:border-yellow-600 hover:bg-yellow-300 dark:hover:bg-yellow-700'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-500 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          }`}
+                          data-testid={`modified-bit-${mapping.plc_reg_add}-${bitIndex}`}
+                          title={isBoolExisting ? 'Bit already in use by boolean channel' : isModifiedExisting ? 'Bit selected in another modified channel' : ''}
+                        >
+                          {bitIndex}
+                        </button>
+                      );
+                    })}
+                    <span className="text-xs font-mono text-muted-foreground w-8">0</span>
+                  </div>
+                </div>
+                {/* Comment Box */}
+                <div className="space-y-2">
+                  <label className="text-xs text-blue-700 dark:text-blue-300">Description/Comment:</label>
+                  <textarea
+                    value={modifiedComment}
+                    onChange={(e) => onUpdateModifiedChannelComment(originalIndex, e.target.value)}
+                    placeholder="Enter description for this modified channel..."
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-200"
+                    rows={3}
+                    data-testid={`modified-comment-${originalIndex}`}
+                  />
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </Fragment>
+  );
+});
+
+TableRow.displayName = 'TableRow';
 
 export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemoryAreas = new Set(), onSelectedRegistersChange, plcNo = 1, searchTerm = "", deselectedKeys = new Set(), onDeselectedKeysChange }: AddressMappingsTableProps) {
   const { t } = useLanguage();
@@ -103,10 +353,25 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
   const [modifiedChannelBits, setModifiedChannelBits] = useState<Map<number, Set<number>>>(new Map());
   const [modifiedChannelComments, setModifiedChannelComments] = useState<Map<number, string>>(new Map());
   
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize] = useState(500); // Fixed page size for optimal performance
+  
   // Group deselect states
   const [groupDeselectExpanded, setGroupDeselectExpanded] = useState<boolean>(false);
   const [manualDeselectInput, setManualDeselectInput] = useState<string>("");
   const [csvParsedCount, setCsvParsedCount] = useState<number>(0);
+
+  // Create a stable hash for mappings to avoid expensive JSON.stringify
+  const mappingsHash = useMemo(() => {
+    return `${mappings.length}-${mappings.map(m => `${m.plc_reg_add}-${m.data_type}-${m.opcua_reg_add}`).slice(0, 10).join('|')}`;
+  }, [mappings.length, mappings.slice(0, 10).map(m => `${m.plc_reg_add}-${m.data_type}-${m.opcua_reg_add}`).join('|')]);
+
+  // Helper function to get valid PLC number (same logic as PlcConfigBuilder)
+  const getValidPlcNo = useCallback((): number => {
+    const num = typeof plcNo === 'number' ? plcNo : parseInt(plcNo?.toString() || '1');
+    return (!isNaN(num) && num > 0) ? num : 1;
+  }, [plcNo]);
 
   // Helper function to identify BOOL CHANNEL entries
   const isBoolChannel = (mapping: AddressMapping) => {
@@ -167,10 +432,14 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
   };
 
   // Efficient helper using bit_list attribute instead of reparsing addresses
+  // Use optimized dependency to avoid expensive recalculations
   const getExistingBitData = useMemo(() => {
     const addressToBitsMap = new Map<string, { boolBits: Set<number>, modifiedBits: Set<number> }>();
     
-    mappings.forEach((mapping, index) => {
+    // Only process first 1000 mappings for initial calculation, then update incrementally
+    const relevantMappings = mappings.length > 1000 ? mappings.slice(0, 1000) : mappings;
+    
+    relevantMappings.forEach((mapping, index) => {
       const mappingBaseAddress = mapping.plc_reg_add.split('.')[0];
       
       if (!addressToBitsMap.has(mappingBaseAddress)) {
@@ -228,7 +497,7 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
     });
     
     return addressToBitsMap;
-  }, [mappings]);
+  }, [mappingsHash]); // Use optimized hash instead of full mappings array
   
   // Helper to count total selected bits in all modified channels
   const getTotalModifiedChannelBits = (): number => {
@@ -286,8 +555,8 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
     return firstChar;
   };
 
-  // Create filtered and searched visible mappings
-  const visibleMappings = useMemo(() => {
+  // Create filtered and searched visible mappings with pagination
+  const { visibleMappings, totalPages, totalFilteredCount } = useMemo(() => {
     const filteredMappings = mappings.map((mapping, originalIndex) => ({ mapping, originalIndex }))
       .filter(({ mapping }) => {
         // Always show empty addresses (new mappings)
@@ -296,36 +565,53 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
         return selectedMemoryAreas.has(memoryArea);
       });
 
+    let finalMappings = filteredMappings;
+
     // Apply search filtering if searchTerm exists
-    if (!searchTerm || searchTerm.trim() === '') {
-      return filteredMappings;
+    if (searchTerm && searchTerm.trim() !== '') {
+      const searchTermLower = searchTerm.toLowerCase();
+      const matchingMappings: Array<{ mapping: AddressMapping; originalIndex: number; isMatch: boolean }> = [];
+
+      filteredMappings.forEach(({ mapping, originalIndex }) => {
+        const plcRegAdd = mapping.plc_reg_add.toLowerCase();
+        const opcuaRegAdd = mapping.opcua_reg_add.toLowerCase();
+        const description = (mapping.description || '').toLowerCase();
+        
+        const isMatch = plcRegAdd.includes(searchTermLower) ||
+                        opcuaRegAdd.includes(searchTermLower) ||
+                        description.includes(searchTermLower);
+        
+        matchingMappings.push({ mapping, originalIndex, isMatch });
+      });
+
+      // Sort: matches first, then non-matches
+      matchingMappings.sort((a, b) => {
+        if (a.isMatch && !b.isMatch) return -1;
+        if (!a.isMatch && b.isMatch) return 1;
+        return 0;
+      });
+
+      finalMappings = matchingMappings.map(({ mapping, originalIndex }) => ({ mapping, originalIndex }));
     }
 
-    const searchTermLower = searchTerm.toLowerCase();
-    const matchingMappings: Array<{ mapping: AddressMapping; originalIndex: number; isMatch: boolean }> = [];
+    // Calculate pagination
+    const totalCount = finalMappings.length;
+    const totalPages = Math.ceil(totalCount / pageSize);
+    const startIndex = currentPage * pageSize;
+    const endIndex = Math.min(startIndex + pageSize, totalCount);
+    const paginatedMappings = finalMappings.slice(startIndex, endIndex);
 
-    filteredMappings.forEach(({ mapping, originalIndex }) => {
-      const plcRegAdd = mapping.plc_reg_add.toLowerCase();
-      const opcuaRegAdd = mapping.opcua_reg_add.toLowerCase();
-      const description = (mapping.description || '').toLowerCase();
-      
-      const isMatch = plcRegAdd.includes(searchTermLower) || 
-                      opcuaRegAdd.includes(searchTermLower) || 
-                      description.includes(searchTermLower);
-      
-      matchingMappings.push({ mapping, originalIndex, isMatch });
-    });
+    return {
+      visibleMappings: paginatedMappings,
+      totalPages,
+      totalFilteredCount: totalCount
+    };
+  }, [mappings, selectedMemoryAreas, searchTerm, currentPage, pageSize]);
 
-    // Sort: matches first, then non-matches
-    matchingMappings.sort((a, b) => {
-      if (a.isMatch && !b.isMatch) return -1;
-      if (!a.isMatch && b.isMatch) return 1;
-      return 0;
-    });
-
-    // Return in the original format
-    return matchingMappings.map(({ mapping, originalIndex }) => ({ mapping, originalIndex }));
-  }, [mappings, selectedMemoryAreas, searchTerm]);
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [searchTerm, selectedMemoryAreas, mappingsHash]);
 
   // Initialize registers as selected only on first render
   useEffect(() => {
@@ -349,16 +635,20 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
   }, [selectedRegisters, onSelectedRegistersChange]);
 
   // Derive bit states directly from current mappings (more reliable than useEffect)
+  // Use optimized dependency instead of expensive JSON.stringify
   const channelBitStates = useMemo(() => {
     const newBitStates = new Map<number, Set<number>>();
+    // Only process visible mappings and their related entries for better performance
+    const relevantIndices = new Set(visibleMappings.map(({ originalIndex }) => originalIndex));
+    
     mappings.forEach((mapping, index) => {
-      if (isBoolChannel(mapping)) {
+      if (isBoolChannel(mapping) && (relevantIndices.has(index) || relevantIndices.size === 0)) {
         const usedBits = extractUsedBits(mapping.plc_reg_add);
         newBitStates.set(index, new Set(usedBits));
       }
     });
     return newBitStates;
-  }, [JSON.stringify(mappings)]);
+  }, [mappingsHash, visibleMappings.length]); // Use optimized dependencies
 
   // Initialize modified channel bits from metadata when mappings change
   useEffect(() => {
@@ -529,12 +819,16 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
         newBits.add(bitNumber);
       }
       
-      // Add new BOOL entries for selected bits
+      // Add new BOOL entries for selected bits with proper PLC number prefix
+      const validPlcNumber = getValidPlcNo();
       newBits.forEach((bit: number) => {
+        const bitAddress = `${baseAddress}.${bit.toString().padStart(2, '0')}`;
+        const opcuaName = generateOpcuaName(baseAddress, 'BOOL', bit.toString().padStart(2, '0'), false, validPlcNumber);
+        
         const bitMapping: AddressMapping = {
-          plc_reg_add: `${baseAddress}.${bit.toString().padStart(2, '0')}`,
+          plc_reg_add: bitAddress,
           data_type: 'BOOL',
-          opcua_reg_add: `${baseAddress}_B${bit.toString().padStart(2, '0')}`
+          opcua_reg_add: opcuaName
         };
         newMappings.push(bitMapping);
       });
@@ -680,42 +974,58 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
     setSelectedRegisters(newSelectedRegisters);
   };
 
-  const updateMapping = (index: number, field: keyof AddressMapping, value: string) => {
-    const updatedMappings = mappings.map((mapping, i) => {
-      if (i === index) {
-        const updatedMapping = { ...mapping, [field]: value };
-        
-        // Auto-generate OPC UA register when PLC address or data type changes
-        if (field === 'plc_reg_add' || field === 'data_type') {
-          const plcAddress = field === 'plc_reg_add' ? value : mapping.plc_reg_add;
-          const dataType = field === 'data_type' ? value : mapping.data_type;
+  // Debounced update mapping to prevent excessive re-renders during typing
+  const debouncedUpdateMapping = useDebouncedCallback(
+    (index: number, field: keyof AddressMapping, value: string) => {
+      const updatedMappings = mappings.map((mapping, i) => {
+        if (i === index) {
+          const updatedMapping = { ...mapping, [field]: value };
           
-          if (plcAddress && dataType) {
-            const plcNumber = typeof plcNo === 'number' ? plcNo : parseInt(plcNo?.toString() || '1') || 1;
-            const baseAddr = plcAddress.split('.')[0];
-            let newOpcuaName: string;
+          // Auto-generate OPC UA register when PLC address or data type changes
+          if (field === 'plc_reg_add' || field === 'data_type') {
+            const plcAddress = field === 'plc_reg_add' ? value : mapping.plc_reg_add;
+            const dataType = field === 'data_type' ? value : mapping.data_type;
             
-            if (dataType === 'CHANNEL') {
-              newOpcuaName = generateOpcuaName(baseAddr, 'CHANNEL', undefined, false, plcNumber);
-            } else if (dataType === 'modified channel') {
-              newOpcuaName = generateOpcuaName(baseAddr, 'MODIFIED CHANNEL', undefined, false, plcNumber);
-            } else if (dataType === 'BOOL' && plcAddress.includes('.')) {
-              const bitPosition = plcAddress.split('.')[1];
-              newOpcuaName = generateOpcuaName(baseAddr, 'BOOL', bitPosition, false, plcNumber);
-            } else {
-              newOpcuaName = generateOpcuaName(baseAddr, dataType, undefined, false, plcNumber);
+            if (plcAddress && dataType) {
+              const plcNumber = getValidPlcNo(); // Use robust validation instead of fallback logic
+              const baseAddr = plcAddress.split('.')[0];
+              let newOpcuaName: string;
+              
+              if (dataType === 'CHANNEL') {
+                newOpcuaName = generateOpcuaName(baseAddr, 'CHANNEL', undefined, false, plcNumber);
+              } else if (dataType === 'modified channel') {
+                newOpcuaName = generateOpcuaName(baseAddr, 'MODIFIED CHANNEL', undefined, false, plcNumber);
+              } else if (dataType === 'BOOL' && plcAddress.includes('.')) {
+                const bitPosition = plcAddress.split('.')[1];
+                newOpcuaName = generateOpcuaName(baseAddr, 'BOOL', bitPosition, false, plcNumber);
+              } else {
+                newOpcuaName = generateOpcuaName(baseAddr, dataType, undefined, false, plcNumber);
+              }
+              
+              updatedMapping.opcua_reg_add = newOpcuaName;
             }
-            
-            updatedMapping.opcua_reg_add = newOpcuaName;
           }
+          
+          return updatedMapping;
         }
-        
-        return updatedMapping;
-      }
-      return mapping;
-    });
-    onMappingsChange(updatedMappings);
-  };
+        return mapping;
+      });
+      onMappingsChange(updatedMappings);
+    },
+    300
+  );
+
+  // Immediate update mapping for non-text fields (no debounce needed)
+  const updateMapping = useCallback((index: number, field: keyof AddressMapping, value: string) => {
+    // For select dropdowns and non-text inputs, update immediately
+    if (field === 'data_type') {
+      debouncedUpdateMapping(index, field, value);
+      return;
+    }
+    
+    // For text inputs, use debounced update
+    debouncedUpdateMapping(index, field, value);
+  }, [debouncedUpdateMapping]);
 
   const removeMapping = (index: number) => {
     const updatedMappings = mappings.filter((_, i) => i !== index);
@@ -842,11 +1152,58 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
         </div>
       </div>
       
-      {/* Dynamic variable count display */}
-      <div className="mb-4 px-2">
+      {/* Dynamic variable count display and pagination */}
+      <div className="mb-4 px-2 flex justify-between items-center">
         <span className="text-sm font-medium text-muted-foreground" data-testid="text-total-selected">
           total selected variable = {selectedRegisters.size + getTotalModifiedChannelBits()}
         </span>
+        
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-muted-foreground">
+              Page {currentPage + 1} of {totalPages} ({totalFilteredCount} total records)
+            </span>
+            <div className="flex space-x-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(0)}
+                disabled={currentPage === 0}
+                data-testid="button-first-page"
+              >
+                ««
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
+                disabled={currentPage === 0}
+                data-testid="button-prev-page"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
+                disabled={currentPage >= totalPages - 1}
+                data-testid="button-next-page"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(totalPages - 1)}
+                disabled={currentPage >= totalPages - 1}
+                data-testid="button-last-page"
+              >
+                »»
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
       
       <div className="overflow-x-auto">

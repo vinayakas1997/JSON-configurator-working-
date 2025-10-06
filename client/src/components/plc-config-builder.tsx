@@ -141,7 +141,7 @@ export function PlcConfigBuilder() {
 
   // Helper function to generate OPCUA list in the specified format
   const generateOpcuaList = (): string => {
-    // Filter and get mappings based on selections (similar to JSON generation)
+    // Filter and get mappings based on selections - include ALL records, not just paginated ones
     const filteredMappings = addressMappings
       .map((mapping, index) => ({ mapping, index }))
       .filter(({ mapping, index }) => {
@@ -151,12 +151,12 @@ export function PlcConfigBuilder() {
           return false;
         }
         
-        // Filter by individual register selection (if no registers selected, select all)
-        if (selectedRegisters.size > 0 && !selectedRegisters.has(index)) {
-          return false;
-        }
+        // Use deselectedKeys instead of selectedRegisters to include all records
+        const baseRegister = mapping.plc_reg_add.split('.')[0];
+        const fullRegister = mapping.plc_reg_add;
+        const isDeselected = deselectedKeys.has(baseRegister) || deselectedKeys.has(fullRegister);
         
-        return true;
+        return !isDeselected; // Include if not specifically deselected
       })
       .map(({ mapping }) => mapping);
 
@@ -183,7 +183,7 @@ export function PlcConfigBuilder() {
   };
 
   const generateJson = (): string => {
-    // Filter and transform address mappings based on selections
+    // Filter and transform address mappings based on selections - include ALL records, not just paginated ones
     const filteredMappings = addressMappings
       .map((mapping, index) => ({ mapping, index }))
       .filter(({ mapping, index }) => {
@@ -193,12 +193,12 @@ export function PlcConfigBuilder() {
           return false;
         }
         
-        // Filter by individual register selection (if no registers selected, select all)
-        if (selectedRegisters.size > 0 && !selectedRegisters.has(index)) {
-          return false;
-        }
+        // Use deselectedKeys instead of selectedRegisters to include all records
+        const baseRegister = mapping.plc_reg_add.split('.')[0];
+        const fullRegister = mapping.plc_reg_add;
+        const isDeselected = deselectedKeys.has(baseRegister) || deselectedKeys.has(fullRegister);
         
-        return true;
+        return !isDeselected; // Include if not specifically deselected
       })
       .map(({ mapping }) => {
         const memoryArea = getMemoryAreaFromMapping(mapping);
@@ -1055,12 +1055,12 @@ export function PlcConfigBuilder() {
                     />
                   </div>
                   
-                  <AddressMappingsTable 
+                  <AddressMappingsTable
                     mappings={addressMappings}
                     onMappingsChange={setAddressMappings}
                     selectedMemoryAreas={selectedMemoryAreas}
                     onSelectedRegistersChange={setSelectedRegisters}
-                    plcNo={plcNo}
+                    plcNo={getValidPlcNo() || 1}
                     searchTerm={registerSearchTerm}
                     deselectedKeys={deselectedKeys}
                     onDeselectedKeysChange={setDeselectedKeys}
