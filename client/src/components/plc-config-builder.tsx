@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { Menu, Globe, ChevronDown, BarChart, Table, Eye, Download, List, Save, Plus } from "lucide-react";
+import { Menu, Globe, ChevronDown, BarChart, Table, Eye, Download, List, Save, Plus, Filter, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
 import { Sidebar } from "./sidebar";
@@ -25,6 +26,7 @@ export function PlcConfigBuilder() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showUploadCard, setShowUploadCard] = useState(true);
   const [overviewExpanded, setOverviewExpanded] = useState(false);
+  const [addressRangeExpanded, setAddressRangeExpanded] = useState(false);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [showJsonModal, setShowJsonModal] = useState(false);
   const [showOpcuaListModal, setShowOpcuaListModal] = useState(false);
@@ -56,6 +58,16 @@ export function PlcConfigBuilder() {
     new Set(['I/O', 'A', 'C', 'D', 'E', 'T', 'H'])
   );
   const [selectedRegisters, setSelectedRegisters] = useState<Set<number>>(new Set());
+  
+  // Address range filter state
+  interface AddressRangeFilter {
+    id: string;
+    area: string;
+    startAddr: string;
+    endAddr: string;
+  }
+  
+  const [addressRangeFilters, setAddressRangeFilters] = useState<AddressRangeFilter[]>([]);
   
   // File parsing results state
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
@@ -151,6 +163,11 @@ export function PlcConfigBuilder() {
           return false;
         }
         
+        // Filter by address range if filters are active
+        if (!passesAddressRangeFilters(mapping)) {
+          return false;
+        }
+        
         // Use deselectedKeys instead of selectedRegisters to include all records
         const baseRegister = mapping.plc_reg_add.split('.')[0];
         const fullRegister = mapping.plc_reg_add;
@@ -190,6 +207,11 @@ export function PlcConfigBuilder() {
         // Filter by memory area selection
         const memoryArea = getMemoryAreaFromMapping(mapping);
         if (!selectedMemoryAreas.has(memoryArea)) {
+          return false;
+        }
+        
+        // Filter by address range if filters are active
+        if (!passesAddressRangeFilters(mapping)) {
           return false;
         }
         
@@ -526,6 +548,97 @@ export function PlcConfigBuilder() {
       newSelected.add(area);
     }
     setSelectedMemoryAreas(newSelected);
+  };
+
+  // Address range filter functions
+  const addAddressRangeFilter = () => {
+    const newFilter: AddressRangeFilter = {
+      id: Date.now().toString(),
+      area: 'I/O',
+      startAddr: '',
+      endAddr: ''
+    };
+    setAddressRangeFilters([...addressRangeFilters, newFilter]);
+  };
+
+  const removeAddressRangeFilter = (id: string) => {
+    setAddressRangeFilters(addressRangeFilters.filter(filter => filter.id !== id));
+  };
+
+  const updateAddressRangeFilter = (id: string, field: keyof AddressRangeFilter, value: string) => {
+    setAddressRangeFilters(addressRangeFilters.map(filter =>
+      filter.id === id ? { ...filter, [field]: value } : filter
+    ));
+  };
+
+  // Helper function to check if an address falls within the specified ranges
+  const isAddressInRange = (address: string, startAddr: string, endAddr: string): boolean => {
+    if (!startAddr || !endAddr) return true; // If no range specified, include all
+    
+    // Extract numeric part from address for comparison
+    const getNumericPart = (addr: string) => {
+      const match = addr.match(/(\d+)/);
+      return match ? parseInt(match[1]) : 0;
+    };
+    
+    const addressNum = getNumericPart(address);
+    const startNum = getNumericPart(startAddr);
+    const endNum = getNumericPart(endAddr);
+    
+    return addressNum >= startNum && addressNum <= endNum;
+  };
+
+  // Helper function to check if a mapping passes address range filters
+  const passesAddressRangeFilters = (mapping: AddressMapping): boolean => {
+    if (addressRangeFilters.length === 0) return true; // No filters means include all
+    
+    const mappingArea = getMemoryAreaFromMapping(mapping);
+    
+    return addressRangeFilters.some(filter => {
+      // Check if the mapping's area matches the filter's area
+      if (filter.area !== mappingArea) return false;
+      
+      // Check if the address falls within the range
+      return isAddressInRange(mapping.plc_reg_add, filter.startAddr, filter.endAddr);
+    });
+  };
+
+  // Helper function to calculate filtered statistics for address range overview
+  const calculateFilteredStatistics = () => {
+    const filteredMappings = addressMappings.filter(mapping => {
+      // Filter by memory area selection
+      const memoryArea = getMemoryAreaFromMapping(mapping);
+      if (!selectedMemoryAreas.has(memoryArea)) {
+        return false;
+      }
+      
+      // Filter by address range if filters are active
+      if (!passesAddressRangeFilters(mapping)) {
+        return false;
+      }
+      
+      // Use deselectedKeys instead of selectedRegisters to include all records
+      const baseRegister = mapping.plc_reg_add.split('.')[0];
+      const fullRegister = mapping.plc_reg_add;
+      const isDeselected = deselectedKeys.has(baseRegister) || deselectedKeys.has(fullRegister);
+      
+      return !isDeselected; // Include if not specifically deselected
+    });
+
+    const totalRegisters = filteredMappings.length;
+    const modifiedRegisters = filteredMappings.filter(mapping =>
+      mapping.data_type === 'modified channel' ||
+      (mapping as any).metadata
+    ).length;
+    const individualBooleans = filteredMappings.filter(mapping =>
+      mapping.data_type === 'BOOL' && mapping.plc_reg_add.includes('.')
+    ).length;
+
+    return {
+      totalRegisters,
+      modifiedRegisters,
+      individualBooleans
+    };
   };
 
   return (
@@ -990,6 +1103,144 @@ export function PlcConfigBuilder() {
             </Collapsible>
           </Card>
 
+          {/* Enter Address Range Manually Section */}
+          <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800" data-testid="card-address-range">
+            <Collapsible open={addressRangeExpanded} onOpenChange={setAddressRangeExpanded}>
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="w-full p-4 justify-between text-left hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                  data-testid="button-address-range-toggle"
+                >
+                  <div className="flex items-center space-x-2">
+                    <Filter className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    <span className="text-lg font-medium text-blue-900 dark:text-blue-100">
+                      Enter Address Range Manually
+                    </span>
+                  </div>
+                  <ChevronDown
+                    className={`w-4 h-4 text-blue-600 dark:text-blue-400 transition-transform ${
+                      addressRangeExpanded ? 'rotate-180' : ''
+                    }`}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="p-4 border-t border-blue-200 dark:border-blue-800" data-testid="content-address-range">
+                  {(() => {
+                    const stats = calculateFilteredStatistics();
+                    
+                    return (
+                      <div className="space-y-6">
+                        {/* Overview Statistics */}
+                        <div className="space-y-3">
+                          <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100">Filtered Overview</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="bg-white dark:bg-blue-800/30 p-4 rounded-lg border border-blue-200 dark:border-blue-700" data-testid="stat-total-filtered">
+                              <div className="text-2xl font-bold text-blue-600 dark:text-blue-300">{stats.totalRegisters}</div>
+                              <div className="text-sm text-blue-700 dark:text-blue-200">Total Registers</div>
+                            </div>
+                            <div className="bg-white dark:bg-blue-800/30 p-4 rounded-lg border border-blue-200 dark:border-blue-700" data-testid="stat-modified-filtered">
+                              <div className="text-2xl font-bold text-blue-600 dark:text-blue-300">{stats.modifiedRegisters}</div>
+                              <div className="text-sm text-blue-700 dark:text-blue-200">Modified Registers</div>
+                            </div>
+                            <div className="bg-white dark:bg-blue-800/30 p-4 rounded-lg border border-blue-200 dark:border-blue-700" data-testid="stat-booleans-filtered">
+                              <div className="text-2xl font-bold text-blue-600 dark:text-blue-300">{stats.individualBooleans}</div>
+                              <div className="text-sm text-blue-700 dark:text-blue-200">Individual Booleans</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Address Range Filters */}
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100">Address Range Filters</h3>
+                            <Button
+                              onClick={addAddressRangeFilter}
+                              className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white"
+                              data-testid="button-add-range-filter"
+                            >
+                              <Plus className="w-4 h-4" />
+                              <span>Add</span>
+                            </Button>
+                          </div>
+
+                          {/* Filter Rows Header */}
+                          <div className="grid grid-cols-4 gap-4 p-3 bg-blue-100 dark:bg-blue-800/50 rounded-lg font-medium text-blue-900 dark:text-blue-100">
+                            <div>Area</div>
+                            <div>Start Address</div>
+                            <div>End Address</div>
+                            <div>Actions</div>
+                          </div>
+
+                          {/* Filter Rows */}
+                          <div className="space-y-2">
+                            {addressRangeFilters.map((filter) => (
+                              <div key={filter.id} className="grid grid-cols-4 gap-4 p-3 bg-white dark:bg-blue-800/30 rounded-lg border border-blue-200 dark:border-blue-700">
+                                <div>
+                                  <Select
+                                    value={filter.area}
+                                    onValueChange={(value) => updateAddressRangeFilter(filter.id, 'area', value)}
+                                  >
+                                    <SelectTrigger className="w-full">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="I/O">I/O</SelectItem>
+                                      <SelectItem value="A">A</SelectItem>
+                                      <SelectItem value="C">C</SelectItem>
+                                      <SelectItem value="D">D</SelectItem>
+                                      <SelectItem value="E">E</SelectItem>
+                                      <SelectItem value="T">T</SelectItem>
+                                      <SelectItem value="H">H</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div>
+                                  <Input
+                                    value={filter.startAddr}
+                                    onChange={(e) => updateAddressRangeFilter(filter.id, 'startAddr', e.target.value)}
+                                    placeholder="e.g., 1000"
+                                    className="w-full"
+                                  />
+                                </div>
+                                <div>
+                                  <Input
+                                    value={filter.endAddr}
+                                    onChange={(e) => updateAddressRangeFilter(filter.id, 'endAddr', e.target.value)}
+                                    placeholder="e.g., 2000"
+                                    className="w-full"
+                                  />
+                                </div>
+                                <div>
+                                  <Button
+                                    onClick={() => removeAddressRangeFilter(filter.id)}
+                                    variant="destructive"
+                                    size="sm"
+                                    className="w-full"
+                                    data-testid={`button-delete-filter-${filter.id}`}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                            
+                            {addressRangeFilters.length === 0 && (
+                              <div className="text-center p-6 text-blue-600 dark:text-blue-300">
+                                No address range filters configured. Click "Add" to create your first filter.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </Card>
+
           {/* PLC Register Details Section */}
           <Card data-testid="card-details">
             <Collapsible open={detailsExpanded} onOpenChange={setDetailsExpanded}>
@@ -1064,6 +1315,7 @@ export function PlcConfigBuilder() {
                     searchTerm={registerSearchTerm}
                     deselectedKeys={deselectedKeys}
                     onDeselectedKeysChange={setDeselectedKeys}
+                    addressRangeFilters={addressRangeFilters}
                   />
                 </div>
               </CollapsibleContent>

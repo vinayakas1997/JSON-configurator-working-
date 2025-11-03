@@ -21,6 +21,12 @@ interface AddressMappingsTableProps {
   searchTerm?: string;
   deselectedKeys?: Set<string>;
   onDeselectedKeysChange?: (keys: Set<string>) => void;
+  addressRangeFilters?: Array<{
+    id: string;
+    area: string;
+    startAddr: string;
+    endAddr: string;
+  }>;
 }
 
 // 16-bit grid component for boolean channel visualization
@@ -343,7 +349,7 @@ const TableRow = memo(({
 
 TableRow.displayName = 'TableRow';
 
-export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemoryAreas = new Set(), onSelectedRegistersChange, plcNo = 1, searchTerm = "", deselectedKeys = new Set(), onDeselectedKeysChange }: AddressMappingsTableProps) {
+export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemoryAreas = new Set(), onSelectedRegistersChange, plcNo = 1, searchTerm = "", deselectedKeys = new Set(), onDeselectedKeysChange, addressRangeFilters = [] }: AddressMappingsTableProps) {
   const { t } = useLanguage();
   const { toast } = useToast();
   
@@ -555,14 +561,57 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
     return firstChar;
   };
 
+  // Helper function to check if an address falls within the specified ranges
+  const isAddressInRange = (address: string, startAddr: string, endAddr: string): boolean => {
+    if (!startAddr || !endAddr) return true; // If no range specified, include all
+    
+    // Extract numeric part from address for comparison
+    const getNumericPart = (addr: string) => {
+      const match = addr.match(/(\d+)/);
+      return match ? parseInt(match[1]) : 0;
+    };
+    
+    const addressNum = getNumericPart(address);
+    const startNum = getNumericPart(startAddr);
+    const endNum = getNumericPart(endAddr);
+    
+    return addressNum >= startNum && addressNum <= endNum;
+  };
+
+  // Helper function to check if a mapping passes address range filters
+  const passesAddressRangeFilters = (mapping: AddressMapping): boolean => {
+    if (!addressRangeFilters || addressRangeFilters.length === 0) return true; // No filters means include all
+    
+    const mappingArea = getMemoryAreaFromMapping(mapping);
+    
+    return addressRangeFilters.some(filter => {
+      // Check if the mapping's area matches the filter's area
+      if (filter.area !== mappingArea) return false;
+      
+      // Check if the address falls within the range
+      return isAddressInRange(mapping.plc_reg_add, filter.startAddr, filter.endAddr);
+    });
+  };
+
   // Create filtered and searched visible mappings with pagination
   const { visibleMappings, totalPages, totalFilteredCount } = useMemo(() => {
     const filteredMappings = mappings.map((mapping, originalIndex) => ({ mapping, originalIndex }))
       .filter(({ mapping }) => {
         // Always show empty addresses (new mappings)
         if (!mapping.plc_reg_add || mapping.plc_reg_add.trim() === '') return true;
+        
+        // Filter by memory area selection
         const memoryArea = getMemoryAreaFromMapping(mapping);
-        return selectedMemoryAreas.has(memoryArea);
+        if (!selectedMemoryAreas.has(memoryArea)) {
+          return false;
+        }
+        
+        // Filter by address range if filters are active
+        if (!passesAddressRangeFilters(mapping)) {
+          return false;
+        }
+        
+        return true;
       });
 
     let finalMappings = filteredMappings;
@@ -606,12 +655,12 @@ export function AddressMappingsTable({ mappings, onMappingsChange, selectedMemor
       totalPages,
       totalFilteredCount: totalCount
     };
-  }, [mappings, selectedMemoryAreas, searchTerm, currentPage, pageSize]);
+  }, [mappings, selectedMemoryAreas, searchTerm, currentPage, pageSize, addressRangeFilters]);
 
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(0);
-  }, [searchTerm, selectedMemoryAreas, mappingsHash]);
+  }, [searchTerm, selectedMemoryAreas, mappingsHash, addressRangeFilters]);
 
   // Initialize registers as selected only on first render
   useEffect(() => {
